@@ -33,15 +33,16 @@ options(scipen = 999)
 
 
 setwd("/Users/bardii47/Documents")  # Set working directory
- 
+
 getwd()  # Confirm the current working directory
 ## ------------------------   DATA INSERTION   ------------------------------------
 
 #Read excel file into data frames
 
 library(readxl)
-X06_analyze_Final_data_volume_staged_AVM <- read_excel("Downloads/06_analyze_Final_data_volume_staged_AVM.xlsx", sheet = "Sheet1")
-data <- X06_analyze_Final_data_volume_staged_AVM[, 1:92]
+X06_analyze_Final_data_volume_staged_AVM <- read_excel("C:/Users/kjh7vp/Desktop/Projects/Originial Articles/6- Volume-staged AVM/06_analyze_Final_data_volume_staged_AVM.xlsx", sheet = "Sheet1")
+
+data <- X06_analyze_Final_data_volume_staged_AVM
 
 {
   data$Age_at_diagnosis <- as.numeric(data$Age_at_diagnosis)
@@ -110,80 +111,80 @@ table(data$obliteration.status)
 ###################################### FILTER PATIENTS WITHOUT FU, DEFINE OUTCOMES ###################################################
 ######################################################################################################################################
 
-  #Create new temporary to define competing events and times to competing events
-  temp <- data
-  
-  #Define last neuroimaging FU time as last MRI or DSA follow-up
-  temp$FU.time <- NA
-  for (i in 1:nrow(temp)) {
-    temp$FU.time[i] <- with(temp, pmax(temp$last_MRI_fu[i], temp$last_angio_FU[i], na.rm = TRUE))
+#Create new temporary to define competing events and times to competing events
+temp <- data
+
+#Define last neuroimaging FU time as last MRI or DSA follow-up
+temp$FU.time <- NA
+for (i in 1:nrow(temp)) {
+  temp$FU.time[i] <- with(temp, pmax(temp$last_MRI_fu[i], temp$last_angio_FU[i], na.rm = TRUE))
+}
+
+#Define occlusion in binary regardless of modality used for confirmation
+temp$Occlusion <- NA
+for (i in 1:nrow(temp)) {
+  if (temp$obliteration.status[i]==0){
+    temp$Occlusion[i] <- 0
+  }else{
+    temp$Occlusion[i] <- 1
   }
-  
-  #Define occlusion in binary regardless of modality used for confirmation
-  temp$Occlusion <- NA
-  for (i in 1:nrow(temp)) {
-    if (temp$obliteration.status[i]==0){
-      temp$Occlusion[i] <- 0
-    }else{
-      temp$Occlusion[i] <- 1
-    }
+}
+
+#Define RIC deficit (neuro or seizures) in binary and time to RIC deficit, keep only symptomatic ones, discard asymptomatic and headache
+temp$RIC.deficit <- NA
+for (i in 1:nrow(temp)) {
+  if (temp$RIC[i]==0){
+    temp$RIC.deficit[i] <- 0
+  }else{
+    temp$RIC.deficit[i] <- 1
   }
-  
-  #Define RIC deficit (neuro or seizures) in binary and time to RIC deficit, keep only symptomatic ones, discard asymptomatic and headache
-  temp$RIC.deficit <- NA
-  for (i in 1:nrow(temp)) {
-    if (temp$RIC[i]==0){
-      temp$RIC.deficit[i] <- 0
-    }else{
-      temp$RIC.deficit[i] <- 1
-    }
+}
+
+temp$RIC.deficit.time <- NA
+for (i in 1:nrow(temp)) {
+  if (temp$RIC.deficit[i]==1){
+    temp$RIC.deficit.time[i] <- temp$time.to.RIC[i]
+  }else{
+    temp$RIC.deficit.time[i] <- NA
   }
-  
-  temp$RIC.deficit.time <- NA
-  for (i in 1:nrow(temp)) {
-    if (temp$RIC.deficit[i]==1){
-      temp$RIC.deficit.time[i] <- temp$time.to.RIC[i]
-    }else{
-      temp$RIC.deficit.time[i] <- NA
-    }
+}
+
+#Define death in binary, assigning only death that occurred without other events
+temp$Death <- NA
+for (i in 1:nrow(temp)) {
+  if (temp$Occlusion[i]==0 &
+      temp$post.srs.hemorrhage[i]==0 & 
+      temp$RIC.deficit[i]==0 &
+      temp$salvage.tx[i]==0 &
+      temp$Death.status[i]==1){
+    temp$Death[i] <- 1
+  }else{
+    temp$Death[i] <- 0 
   }
-  
-  #Define death in binary, assigning only death that occurred without other events
-  temp$Death <- NA
-  for (i in 1:nrow(temp)) {
-    if (temp$Occlusion[i]==0 &
-        temp$post.srs.hemorrhage[i]==0 & 
-        temp$RIC.deficit[i]==0 &
-        temp$salvage.tx[i]==0 &
-        temp$Death.status[i]==1){
-      temp$Death[i] <- 1
-    }else{
-      temp$Death[i] <- 0 
-    }
-  }
+}
 table(data$Death.status)
 table(temp.final$Death)
-  #Define last FU time, keep the first time-to event for hemorrhage, RIC deficit, death or retreatment and assign FU.time for the rest
-  #That's to not allow transition from hemo/RIC deficit/retreatment/favorable to censored
-  temp$Last.FU.time <- NA
-  for (i in 1:nrow(temp)) {
-    if (temp$post.srs.hemorrhage[i]==1 | temp$RIC.deficit[i]==1 | temp$salvage.tx[i]==1 | temp$Death[i]==1){
-      temp$Last.FU.time[i] <- with(temp, pmin(temp$RIC.deficit.time[i], temp$time.to.hemorrhage[i], temp$time.to.salvage[i], temp$time.to.death[i], na.rm = TRUE))
-    }else{
-      temp$Last.FU.time[i] <- temp$FU.time[i]
-    }
+#Define last FU time, keep the first time-to event for hemorrhage, RIC deficit, death or retreatment and assign FU.time for the rest
+#That's to not allow transition from hemo/RIC deficit/retreatment/favorable to censored
+temp$Last.FU.time <- NA
+for (i in 1:nrow(temp)) {
+  if (temp$post.srs.hemorrhage[i]==1 | temp$RIC.deficit[i]==1 | temp$salvage.tx[i]==1 | temp$Death[i]==1){
+    temp$Last.FU.time[i] <- with(temp, pmin(temp$RIC.deficit.time[i], temp$time.to.hemorrhage[i], temp$time.to.salvage[i], temp$time.to.death[i], na.rm = TRUE))
+  }else{
+    temp$Last.FU.time[i] <- temp$FU.time[i]
   }
+}
 
 
-  
-  #Remove patients without follow-up
-  temp.final <- temp
-  table(temp$Last.FU.time)
 
-  # Assuming you have a dataframe named 'temp'
-  na_count <- sum(is.na(temp.final$Last.FU.time))
-  print(na_count)
-  
+#Remove patients without follow-up
+temp.final <- temp
+table(temp$Last.FU.time)
+
+# Assuming you have a dataframe named 'temp'
+na_count <- sum(is.na(temp.final$Last.FU.time))
+print(na_count)
+
 
 ######################################################################################################################################
 ###################################### CIF ###################################################
@@ -197,16 +198,19 @@ table(temp.final$Death)
   library(ggfortify)
   library(cmprsk)
   library(survival)
-    library(dplyr)
-    library(gtsummary)
-    library(gt)
-    library(officer)
-    library(dplyr)
-    library(gtsummary)
-    library(gt)
-    library(officer)
+  library(dplyr)
+  library(gtsummary)
+  library(gt)
+  library(officer)
+  library(dplyr)
+  library(gtsummary)
+  library(gt)
+  library(officer)
+  library(ggsurvfit)
+  library(stringr)
+  library(tidycmprsk)
 }
-  
+
 
 ######################################################################################################################################
 ############### ---------------------------  CIF analysis for favorable outcome ---------------------------###########################
@@ -576,7 +580,8 @@ Uni_CS <- tbl_uvregression(
     "Opt_age", 
     "prior.hem", 
     "avm_type_cox",
-    "Location", 
+    "Location",
+    "number_of_stages",
     "AVM.diameter",
     "Opt_volume_10", 
     "Opt_volume_15", 
@@ -605,18 +610,18 @@ Multi_CS <- tbl_regression(
   pvalue_fun = ~ style_pvalue(.x, digits = 2)
 )
 
-# Merge the Univariable and Multivariable Tables
-Merged_CS <- tbl_stack(
-  list(Uni_CS, Multi_CS),
-  group_header = c("**Univariable Cox Regression**", "**Multivariable Cox Regression**")
+# Merge Univariable and Multivariable Tables Horizontally
+Merged_CS_fave <- tbl_merge(
+  tbls = list(Uni_CS, Multi_CS),
+  tab_spanner = c("**Univariable Cox Regression**", "**Multivariable Cox Regression**")
 ) %>%
   modify_caption("**Cause-Specific Cox Regression Results**")
 
 # Display the merged table
-Merged_CS
+Merged_CS_fave
 
 # Optionally save the merged table as a Word document
-gtsave(as_gt(Merged_CS), "fave_Merged_Cause_Specific.docx")
+gtsave(as_gt(Merged_CS_fave), "fave_Merged_Cause_Specific.docx")
 
 
 #--------------- Subdistribution hazard model -----------------------
@@ -651,7 +656,7 @@ fave_uni_sub <- tbl_uvregression(
 
 # Print and optionally save the univariable table
 print(fave_uni_sub)
-gtsave(as_gt(fave_uni_sub), file = "fave_uni_sub.docx")
+
 
 # Convert Cox.Status to a factor with appropriate levels
 temp.final$Cox.Status <- factor(temp.final$Cox.Status, levels = c(0, 1))
@@ -668,25 +673,21 @@ fave_multi_sub <- tbl_regression(
   pvalue_fun = function(x) style_pvalue(x, digits = 2)
 )
 
-# Print and optionally save the multivariable table
-print(fave_multi_sub)
-gtsave(as_gt(fave_multi_sub), 
-       file = "fave_multi_sub.docx")
+
 
 # Merge the Univariable and Multivariable Tables
-Merged_Subdistribution <- tbl_stack(
-  list(fave_uni_sub, fave_multi_sub),
-  group_header = c("**Univariable Subdistribution Model**", 
-                   "**Multivariable Subdistribution Model**")
+Merged_Subdistribution_fave <- tbl_merge(
+  tbls = list(fave_uni_sub, fave_multi_sub),
+  tab_spanner = c("**Univariable Subdistribution Model**", "**Multivariable Subdistribution Model**")
 ) %>%
   modify_caption("**Subdistribution Hazard Model Results**")
 
 # Display the merged table
-Merged_Subdistribution
+Merged_Subdistribution_fave
 
 # Optionally save the merged table as a Word document
-gtsave(as_gt(Merged_Subdistribution), 
-       file = "fave_Merged_Subdistribution.docx")
+gtsave(as_gt(Merged_Subdistribution_fave), "fave_Merged_Subdistribution.docx")
+
 
 
 ######################################################################################################################################
@@ -1037,6 +1038,7 @@ Uni_CS <- tbl_uvregression(
     "avm_type_cox",
     "Location", 
     "AVM.diameter",
+    "number_of_stages", 
     "Opt_volume_10", 
     "Opt_volume_15", 
     "Opt_volume_20", 
@@ -1064,18 +1066,19 @@ Multi_CS <- tbl_regression(
   pvalue_fun = ~ style_pvalue(.x, digits = 2)
 )
 
-# Merge the Univariable and Multivariable Tables
-Merged_CS <- tbl_stack(
-  list(Uni_CS, Multi_CS),
-  group_header = c("**Univariable Cox Regression**", "**Multivariable Cox Regression**")
+# Merge Univariable and Multivariable Tables Horizontally
+Merged_CS_obli <- tbl_merge(
+  tbls = list(Uni_CS, Multi_CS),
+  tab_spanner = c("**Univariable Cox Regression**", "**Multivariable Cox Regression**")
 ) %>%
   modify_caption("**Cause-Specific Cox Regression Results**")
 
 # Display the merged table
-Merged_CS
+Merged_CS_obli
 
 # Optionally save the merged table as a Word document
-gtsave(as_gt(Merged_CS), "obli_Merged_Cause_Specific.docx")
+gtsave(as_gt(Merged_CS_obli), "obli_Merged_Cause_Specific.docx")
+
 
 
 #--------------- Subdistribution hazard model -----------------------
@@ -1092,6 +1095,7 @@ obli_uni_sub <- tbl_uvregression(
     "prior.hem", 
     "Location", 
     "AVM.diameter",
+    "number_of_stages", 
     "Opt_volume_10", 
     "Opt_volume_15", 
     "Opt_volume_20", 
@@ -1110,7 +1114,7 @@ obli_uni_sub <- tbl_uvregression(
 
 # Print and optionally save the univariable table
 print(obli_uni_sub)
-gtsave(as_gt(obli_uni_sub), file = "obli_uni_sub.docx")
+
 
 # Convert Cox.Status to a factor with appropriate levels
 temp.final$Cox.Status <- factor(temp.final$Cox.Status, levels = c(0, 1))
@@ -1129,23 +1133,21 @@ obli_multi_sub <- tbl_regression(
 
 # Print and optionally save the multivariable table
 print(obli_multi_sub)
-gtsave(as_gt(obli_multi_sub), 
-       file = "obli_multi_sub.docx")
 
-# Merge the Univariable and Multivariable Tables
-Merged_Subdistribution <- tbl_stack(
-  list(obli_uni_sub, obli_multi_sub),
-  group_header = c("**Univariable Subdistribution Model**", 
-                   "**Multivariable Subdistribution Model**")
+
+# Merge the Univariable and Multivariable Tables Horizontally
+Merged_Subdistribution_obli <- tbl_merge(
+  tbls = list(obli_uni_sub, obli_multi_sub),
+  tab_spanner = c("**Univariable Subdistribution Model**", "**Multivariable Subdistribution Model**")
 ) %>%
   modify_caption("**Subdistribution Hazard Model Results**")
 
 # Display the merged table
-Merged_Subdistribution
+Merged_Subdistribution_obli
 
 # Optionally save the merged table as a Word document
-gtsave(as_gt(Merged_Subdistribution), 
-       file = "obli_Merged_Subdistribution.docx")
+gtsave(as_gt(Merged_Subdistribution_obli), "obli_Merged_Subdistribution.docx")
+
 
 
 
@@ -1687,6 +1689,7 @@ Uni_CS <- tbl_uvregression(
     "avm_type_cox",
     "Location", 
     "AVM.diameter",
+    "number_of_stages", 
     "Opt_volume_10", 
     "Opt_volume_15", 
     "Opt_volume_20", 
@@ -1714,18 +1717,19 @@ Multi_CS <- tbl_regression(
   pvalue_fun = ~ style_pvalue(.x, digits = 2)
 )
 
-# Merge the Univariable and Multivariable Tables
-Merged_CS <- tbl_stack(
-  list(Uni_CS, Multi_CS),
-  group_header = c("**Univariable Cox Regression**", "**Multivariable Cox Regression**")
+# Merge Univariable and Multivariable Tables Horizontally
+Merged_CS_RIC <- tbl_merge(
+  tbls = list(Uni_CS, Multi_CS),
+  tab_spanner = c("**Univariable Cox Regression**", "**Multivariable Cox Regression**")
 ) %>%
   modify_caption("**Cause-Specific Cox Regression Results**")
 
 # Display the merged table
-Merged_CS
+Merged_CS_RIC
 
 # Optionally save the merged table as a Word document
-gtsave(as_gt(Merged_CS), "RIC_Merged_Cause_Specific.docx")
+gtsave(as_gt(Merged_CS_RIC), "RIC_Merged_Cause_Specific.docx")
+
 
 
 #--------------- Subdistribution hazard model -----------------------
@@ -1742,11 +1746,11 @@ RIC_uni_sub <- tbl_uvregression(
     "prior.hem", 
     "Location", 
     "AVM.diameter",
+    "number_of_stages", 
     "Opt_volume_10", 
     "Opt_volume_15", 
     "Opt_volume_20", 
     "Opt_volume_25",
-    "number_of_stages", 
     "Opt_margin_15", 
     "Opt_margin_16", 
     "Opt_margin_17", 
@@ -1760,7 +1764,7 @@ RIC_uni_sub <- tbl_uvregression(
 
 # Print and optionally save the univariable table
 print(RIC_uni_sub)
-gtsave(as_gt(RIC_uni_sub), file = "RIC_uni_sub.docx")
+
 
 # Convert Cox.Status to a factor with appropriate levels
 temp.final$Cox.Status <- factor(temp.final$Cox.Status, levels = c(0, 1))
@@ -1779,23 +1783,54 @@ RIC_multi_sub <- tbl_regression(
 
 # Print and optionally save the multivariable table
 print(RIC_multi_sub)
-gtsave(as_gt(RIC_multi_sub), 
-       file = "RIC_multi_sub.docx")
 
-# Merge the Univariable and Multivariable Tables
-Merged_Subdistribution <- tbl_stack(
-  list(RIC_uni_sub, RIC_multi_sub),
-  group_header = c("**Univariable Subdistribution Model**", 
-                   "**Multivariable Subdistribution Model**")
+
+# Merge Univariable and Multivariable Tables Horizontally
+Merged_Subdistribution_RIC <- tbl_merge(
+  tbls = list(RIC_uni_sub, RIC_multi_sub),
+  tab_spanner = c("**Univariable Subdistribution Model**", "**Multivariable Subdistribution Model**")
 ) %>%
   modify_caption("**Subdistribution Hazard Model Results**")
 
 # Display the merged table
-Merged_Subdistribution
+Merged_Subdistribution_RIC
 
 # Optionally save the merged table as a Word document
-gtsave(as_gt(Merged_Subdistribution), 
-       file = "RIC_Merged_Subdistribution.docx")
+gtsave(as_gt(Merged_Subdistribution_RIC), "RIC_Merged_Subdistribution.docx")
+
+Merged_CS_fave
+Merged_Subdistribution_fave
+Merged_CS_obli
+Merged_Subdistribution_obli
+Merged_CS_RIC
+Merged_Subdistribution_RIC# Merge all six tables vertically
+Merged_All <- tbl_stack(
+  list(
+    Merged_CS_fave,
+    Merged_Subdistribution_fave,
+    Merged_CS_obli,
+    Merged_Subdistribution_obli,
+    Merged_CS_RIC,
+    Merged_Subdistribution_RIC
+  ),
+  group_header = c(
+    "**Cause-Specific Cox Regression (Fave)**",
+    "**Subdistribution Model (Fave)**",
+    "**Cause-Specific Cox Regression (Obli)**",
+    "**Subdistribution Model (Obli)**",
+    "**Cause-Specific Cox Regression (RIC)**",
+    "**Subdistribution Model (RIC)**"
+  )
+) %>%
+  modify_caption("**Combined Results for All Models**")
+
+# Display the merged table
+Merged_All
+
+# Optionally save the merged table as a Word document
+gtsave(as_gt(Merged_All), "Combined_Merged_Results.docx")
+
+
 
 ######################################################################################################################################
 ###################################### Tables ###################################################
@@ -1821,123 +1856,123 @@ gtsave(as_gt(Merged_Subdistribution),
 ###################################### Table 1 - Baseline ###################################################
 
 temp.final <- temp.final %>%
-    mutate(Prior.Resection = case_when(str_detect(prior_tx, "A")==TRUE~1, TRUE ~0),
-           Prior.evac = case_when(str_detect(prior_tx, "B")==TRUE~1, TRUE ~0),
-           Prior.embo.nidus = case_when(str_detect(prior_tx, "D")==TRUE~1, TRUE ~0),
-           Prior.embo.aneurysm = case_when(str_detect(prior_tx, "E")==TRUE~1, TRUE ~0),
-           Prior.csf.div = case_when(str_detect(prior_tx, "C")==TRUE~1, TRUE ~0),
-           No.prior.tx = case_when(str_detect(prior_tx, "N")==TRUE~1, TRUE ~0))
-  
-  temp.final <- temp.final %>%
-    mutate(location = str_replace(location, "1", "L"))
-  temp.final <- temp.final %>%
-    mutate(location = str_replace(location, "2", "T"))
-  temp.final <- temp.final %>%
-    mutate(location = str_replace(location, "3", "B"))
-  temp.final <- temp.final %>%
-    mutate(location = str_replace(location, "4", "C"))
-  
-  temp.final <- temp.final %>%
-    mutate(Lobar = case_when(str_detect(location, "L")==TRUE~1, TRUE ~0),
-           BAsal.ganglia = case_when(str_detect(location, "T")==TRUE~1, TRUE ~0),
-           Brainstem = case_when(str_detect(location, "B")==TRUE~1, TRUE ~0),
-           Cerebellum = case_when(str_detect(location, "C")==TRUE~1, TRUE ~0))
-  
-  temp.final <- temp.final %>%
-    mutate(associated_aneurysm = str_replace(associated_aneurysm, "N", "0"))
-  temp.final <- temp.final %>%
-    mutate(associated_aneurysm = str_replace(associated_aneurysm, "Y", "1"))
-  
-  temp.final <- temp.final %>%
-    mutate(avm_type = str_replace(avm_type, "1", "Compact"))
-  temp.final <- temp.final %>%
-    mutate(avm_type = str_replace(avm_type, "2", "Diffuse"))
-  
-  
-  temp.final <- temp.final %>%
-    mutate(Hemorrhage.diagnosis = case_when(str_detect(sypmtoms_at_dx, "1")==TRUE~1, TRUE ~0),
-           Seizures.diagnosis = case_when(str_detect(sypmtoms_at_dx, "2")==TRUE~1, TRUE ~0),
-           Headache.diagnosis = case_when(str_detect(sypmtoms_at_dx, "3")==TRUE~1, TRUE ~0),
-           Incidental.diagnosis = case_when(str_detect(sypmtoms_at_dx, "4")==TRUE~1, TRUE ~0),
-           Other.diagnosis = case_when(str_detect(sypmtoms_at_dx, "5")==TRUE~1, TRUE ~0))
-  
-  temp.final <- temp.final %>%
-    mutate(side = str_replace(side, "L", "Left"))
-  temp.final <- temp.final %>%
-    mutate(side = str_replace(side, "R", "Right"))
-  temp.final <- temp.final %>%
-    mutate(side = str_replace(side, "B", "Bilateral"))
-  temp.final <- temp.final %>%
-    mutate(side = str_replace(side, "M", "Bilateral"))
-  
-  
-  
-  temp.final <- temp.final %>%
-    mutate(SM_location = str_replace(SM_location, "0", "Non-eloquent"))
-  temp.final <- temp.final %>%
-    mutate(SM_location = str_replace(SM_location, "1", "Eloquent"))
+  mutate(Prior.Resection = case_when(str_detect(prior_tx, "A")==TRUE~1, TRUE ~0),
+         Prior.evac = case_when(str_detect(prior_tx, "B")==TRUE~1, TRUE ~0),
+         Prior.embo.nidus = case_when(str_detect(prior_tx, "D")==TRUE~1, TRUE ~0),
+         Prior.embo.aneurysm = case_when(str_detect(prior_tx, "E")==TRUE~1, TRUE ~0),
+         Prior.csf.div = case_when(str_detect(prior_tx, "C")==TRUE~1, TRUE ~0),
+         No.prior.tx = case_when(str_detect(prior_tx, "N")==TRUE~1, TRUE ~0))
+
+temp.final <- temp.final %>%
+  mutate(location = str_replace(location, "1", "L"))
+temp.final <- temp.final %>%
+  mutate(location = str_replace(location, "2", "T"))
+temp.final <- temp.final %>%
+  mutate(location = str_replace(location, "3", "B"))
+temp.final <- temp.final %>%
+  mutate(location = str_replace(location, "4", "C"))
+
+temp.final <- temp.final %>%
+  mutate(Lobar = case_when(str_detect(location, "L")==TRUE~1, TRUE ~0),
+         BAsal.ganglia = case_when(str_detect(location, "T")==TRUE~1, TRUE ~0),
+         Brainstem = case_when(str_detect(location, "B")==TRUE~1, TRUE ~0),
+         Cerebellum = case_when(str_detect(location, "C")==TRUE~1, TRUE ~0))
+
+temp.final <- temp.final %>%
+  mutate(associated_aneurysm = str_replace(associated_aneurysm, "N", "0"))
+temp.final <- temp.final %>%
+  mutate(associated_aneurysm = str_replace(associated_aneurysm, "Y", "1"))
+
+temp.final <- temp.final %>%
+  mutate(avm_type = str_replace(avm_type, "1", "Compact"))
+temp.final <- temp.final %>%
+  mutate(avm_type = str_replace(avm_type, "2", "Diffuse"))
+
+
+temp.final <- temp.final %>%
+  mutate(Hemorrhage.diagnosis = case_when(str_detect(sypmtoms_at_dx, "1")==TRUE~1, TRUE ~0),
+         Seizures.diagnosis = case_when(str_detect(sypmtoms_at_dx, "2")==TRUE~1, TRUE ~0),
+         Headache.diagnosis = case_when(str_detect(sypmtoms_at_dx, "3")==TRUE~1, TRUE ~0),
+         Incidental.diagnosis = case_when(str_detect(sypmtoms_at_dx, "4")==TRUE~1, TRUE ~0),
+         Other.diagnosis = case_when(str_detect(sypmtoms_at_dx, "5")==TRUE~1, TRUE ~0))
+
+temp.final <- temp.final %>%
+  mutate(side = str_replace(side, "L", "Left"))
+temp.final <- temp.final %>%
+  mutate(side = str_replace(side, "R", "Right"))
+temp.final <- temp.final %>%
+  mutate(side = str_replace(side, "B", "Bilateral"))
+temp.final <- temp.final %>%
+  mutate(side = str_replace(side, "M", "Bilateral"))
+
+
+
+temp.final <- temp.final %>%
+  mutate(SM_location = str_replace(SM_location, "0", "Non-eloquent"))
+temp.final <- temp.final %>%
+  mutate(SM_location = str_replace(SM_location, "1", "Eloquent"))
 
 
 
 
 # Generate the summary table
 
-  Table_1_Baseline <- tbl_summary(
-    temp.final,
-    by = NULL,
-    label = list(
-      Age_at_diagnosis ~ "Age at Diagnosis, y",
-      age_at_srs ~ "Age at SRS, y",
-      gender ~ "Sex",
-      Hemorrhage.diagnosis ~ "Hemorrhage at diagnosis",
-      Seizures.diagnosis ~ "Seizure at diagnosis",
-      Headache.diagnosis ~ "Headache at diagnosis",
-      Incidental.diagnosis ~ "Incidental at diagnosis",
-      Other.diagnosis ~ "Other symptoms at diagnosis",
-      Prior_Hemorrhage ~ "Prior Hemorrhage",
-      period_dx_to_hem ~ "Time from diagnosis to hemorrhage, m",
-      Prior.Resection ~ "Prior resection",
-      Prior.evac ~ "Prior hematoma evacuation",
-      Prior.embo.nidus ~ "Prior nidus embolization",
-      Prior.embo.aneurysm ~ "Prior aneurysm embolization",
-      Prior.csf.div ~ "Prior CSF diversion",
-      No.prior.tx ~ "No prior treatment",
-      Lobar ~ "Lobar",
-      BAsal.ganglia ~ "Basal ganglia/Thalamus",
-      Brainstem ~ "Brainstem",
-      Cerebellum ~ "Cerebellum",
-      side ~ "Side of the AVM",
-      associated_aneurysm ~ "Associated aneurysm",
-      avm_type ~ "AVM type",
-      S_size ~ "Size of the AVM",
-      SM_location ~ "Location of AVM in SM grading",
-      SM_vein ~ "Vein type in SM grading",
-      SM_grade ~ "SM grade",
-      mRS_prior ~ "mRS prior to SRS"
-    ),
-    statistic = list(
-      all_continuous() ~ "{median} ({p25}, {p75})", 
-      all_categorical() ~ "{n} ({p}%)"
-    ),
-    digits = list(
-      all_continuous() ~ 1, 
-      all_categorical() ~ c(0, 1)
-    ),
-    missing = "ifany",
-    missing_text = "Unknown",
-    sort = everything() ~ "alphanumeric",
-    percent = "column",
-    include = c(
-      Age_at_diagnosis, age_at_srs, gender, Prior_Hemorrhage, period_dx_to_hem, Prior.Resection, Prior.evac, Prior.embo.nidus,
-      Prior.embo.aneurysm, Prior.csf.div, No.prior.tx, Lobar, Hemorrhage.diagnosis,Seizures.diagnosis, Headache.diagnosis, Incidental.diagnosis, Other.diagnosis,BAsal.ganglia, Brainstem, Cerebellum, side, associated_aneurysm, avm_type, S_size, SM_location,
-      SM_vein, SM_grade, mRS_prior, 
-    )
-  ) %>%
-    modify_caption("**Table 1. Baseline Characteristics**") %>%
-    bold_labels()
-  
-  # Print the summary table
-  Table_1_Baseline
+Table_1_Baseline <- tbl_summary(
+  temp.final,
+  by = NULL,
+  label = list(
+    Age_at_diagnosis ~ "Age at Diagnosis, y",
+    age_at_srs ~ "Age at SRS, y",
+    gender ~ "Sex",
+    Hemorrhage.diagnosis ~ "Hemorrhage at diagnosis",
+    Seizures.diagnosis ~ "Seizure at diagnosis",
+    Headache.diagnosis ~ "Headache at diagnosis",
+    Incidental.diagnosis ~ "Incidental at diagnosis",
+    Other.diagnosis ~ "Other symptoms at diagnosis",
+    Prior_Hemorrhage ~ "Prior Hemorrhage",
+    period_dx_to_hem ~ "Time from diagnosis to hemorrhage, m",
+    Prior.Resection ~ "Prior resection",
+    Prior.evac ~ "Prior hematoma evacuation",
+    Prior.embo.nidus ~ "Prior nidus embolization",
+    Prior.embo.aneurysm ~ "Prior aneurysm embolization",
+    Prior.csf.div ~ "Prior CSF diversion",
+    No.prior.tx ~ "No prior treatment",
+    Lobar ~ "Lobar",
+    BAsal.ganglia ~ "Basal ganglia/Thalamus",
+    Brainstem ~ "Brainstem",
+    Cerebellum ~ "Cerebellum",
+    side ~ "Side of the AVM",
+    associated_aneurysm ~ "Associated aneurysm",
+    avm_type ~ "AVM type",
+    S_size ~ "Size of the AVM",
+    SM_location ~ "Location of AVM in SM grading",
+    SM_vein ~ "Vein type in SM grading",
+    SM_grade ~ "SM grade",
+    mRS_prior ~ "mRS prior to SRS"
+  ),
+  statistic = list(
+    all_continuous() ~ "{median} ({p25}, {p75})", 
+    all_categorical() ~ "{n} ({p}%)"
+  ),
+  digits = list(
+    all_continuous() ~ 1, 
+    all_categorical() ~ c(0, 1)
+  ),
+  missing = "ifany",
+  missing_text = "Unknown",
+  sort = everything() ~ "alphanumeric",
+  percent = "column",
+  include = c(
+    Age_at_diagnosis, age_at_srs, gender, Prior_Hemorrhage, period_dx_to_hem, Prior.Resection, Prior.evac, Prior.embo.nidus,
+    Prior.embo.aneurysm, Prior.csf.div, No.prior.tx, Lobar, Hemorrhage.diagnosis,Seizures.diagnosis, Headache.diagnosis, Incidental.diagnosis, Other.diagnosis,BAsal.ganglia, Brainstem, Cerebellum, side, associated_aneurysm, avm_type, S_size, SM_location,
+    SM_vein, SM_grade, mRS_prior, 
+  )
+) %>%
+  modify_caption("**Table 1. Baseline Characteristics**") %>%
+  bold_labels()
+
+# Print the summary table
+Table_1_Baseline
 
 
 gt_table <- as_gt(Table_1_Baseline)
@@ -2193,5 +2228,4 @@ iqr_3 <- quartiles[2]
 cat("Median time for Salvage_treatments = 'D':", median_time, "\n")
 cat("1st Quartile (Q1):", iqr_1, "\n")
 cat("3rd Quartile (Q3):", iqr_3, "\n")
-
 
