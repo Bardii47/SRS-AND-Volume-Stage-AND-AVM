@@ -638,6 +638,7 @@ fave_uni_sub <- tbl_uvregression(
     "prior.hem", 
     "Location", 
     "AVM.diameter",
+    "avm_type_cox",
     "Opt_volume_10", 
     "Opt_volume_15", 
     "Opt_volume_20", 
@@ -1096,11 +1097,11 @@ obli_uni_sub <- tbl_uvregression(
     "Location", 
     "AVM.diameter",
     "number_of_stages", 
+    "avm_type_cox",
     "Opt_volume_10", 
     "Opt_volume_15", 
     "Opt_volume_20", 
     "Opt_volume_25",
-    "number_of_stages", 
     "Opt_margin_15", 
     "Opt_margin_16", 
     "Opt_margin_17", 
@@ -1747,6 +1748,7 @@ RIC_uni_sub <- tbl_uvregression(
     "Location", 
     "AVM.diameter",
     "number_of_stages", 
+    "avm_type_cox",
     "Opt_volume_10", 
     "Opt_volume_15", 
     "Opt_volume_20", 
@@ -1757,6 +1759,7 @@ RIC_uni_sub <- tbl_uvregression(
     "Opt_margin_18", 
     "Opt_margin_19", 
     "Opt_margin_20"
+  
   ),
   hide_n = TRUE,
   pvalue_fun = function(x) style_pvalue(x, digits = 2)
