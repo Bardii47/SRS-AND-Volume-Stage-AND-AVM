@@ -1,236 +1,29 @@
-#Read excel file into data frames
+library(dplyr)
+library(gtsummary)
 
-library(readxl)
-X07_analyze_Final_data_volume_staged_AVM <- read_excel("07_analyze_Final_data_volume_staged_AVM.xlsx")
-data <- X07_analyze_Final_data_volume_staged_AVM
+# Step 1: Group the data into "ABC" and "D"
+temp.final$Group <- ifelse(temp.final$Salvage_treatments %in% c("A", "B", "C"), "ABC", "D")
 
-{
-  data$Age_at_diagnosis <- as.numeric(data$Age_at_diagnosis)
-  data$period_dx_to_hem <- as.numeric(data$period_dx_to_hem)
-  data$avm_type <- as.factor(data$avm_type)
-  data$S_size <- as.factor(data$S_size)
-  data$SM_location <- as.factor(data$SM_location)
-  data$SM_vein <- as.factor(data$SM_vein)
-  data$SM_grade <- as.factor(data$SM_grade)
-  data$mRS_prior <- as.factor(data$mRS_prior)
-  data$age_at_srs <- as.numeric(data$age_at_srs)
-  data$max_dm_1st_GK_cm <- as.numeric(data$max_dm_1st_GK_cm)
-  data$`Total_AVM_Volume_(cc)` <- as.numeric(data$`Total_AVM_Volume_(cc)`)
-  data$max_dose_1st_Gy <- as.numeric(data$max_dose_1st_Gy)
-  data$margin_dose_1st_Gy <- as.numeric(data$margin_dose_1st_Gy)
-  data$`isodose(%)_dose_1st_Gy`<- as.numeric(data$`isodose(%)_dose_1st_Gy`)
-  data$`Volume_1st_GK(cc)` <- as.numeric(data$`Volume_1st_GK(cc)`)
-  data$`12_Gy_Volume(cc)` <- as.numeric(data$`12_Gy_Volume(cc)`)
-  data$`Time_between_stages_1-2_(months)` <- as.numeric(data$`Time_between_stages_1-2_(months)`)
-  data$`Max_Dose_2nd_(Gy)` <- as.numeric(data$`Max_Dose_2nd_(Gy)`)
-  data$Margin_2nd_GK <- as.numeric(data$Margin_2nd_GK)
-  data$`isodose(%)_2nd_GK` <- as.numeric(data$`isodose(%)_2nd_GK`)
-  data$volume_2nd_GK_cc <- as.numeric(data$volume_2nd_GK_cc)
-  data$`12_Gy _Volume_2nd(cc)` <- as.numeric(data$`12_Gy _Volume_2nd(cc)`)
-  data$`Time_between_stages_2-3_(months)` <- as.numeric(data$`Time_between_stages_2-3_(months)`)
-  data$`Max_Dose_3rd_GK(Gy)`<- as.numeric(data$`Max_Dose_3rd_GK(Gy)`)
-  data$Margin_3rd_GK <- as.numeric(data$Margin_3rd_GK)
-  data$`isodose(%)_3rd_GK` <- as.numeric(data$`isodose(%)_3rd_GK`)
-  data$volume_3rd_GK <- as.numeric(data$volume_3rd_GK)
-  data$`12_Gy_Volume_3rd_GK(cc)` <- as.numeric(data$`12_Gy_Volume_3rd_GK(cc)`)
-  data$`Time_between_stages_3-4_(months)` <- as.numeric(data$`Time_between_stages_3-4_(months)`)
-  data$Max_Dose_4th_GK <- as.numeric(data$Max_Dose_4th_GK)
-  data$Margin_4th_GK <- as.numeric(data$Margin_4th_GK)
-  data$`Isodose(%)_4th_GK` <- as.numeric(data$`Isodose(%)_4th_GK`)
-  data$`Volume(cc)_4th_GK` <- as.numeric(data$`Volume(cc)_4th_GK`)
-  data$`12_Gy_Volume(cc)_4th_GK` <- as.numeric(data$`12_Gy_Volume(cc)_4th_GK`)
-  data$ARE_Yes_N <- as.character(data$ARE_Yes_N)
-  data$time.to.ARE <-as.numeric(data$time.to.ARE)
-  data$Temporary_or_permanent_symptomatic_ARE <- as.character(data$Temporary_or_permanent_symptomatic_ARE)
-  data$Imaging_ARE <- as.character(data$Imaging_ARE)
-  data$Treatment_for_ARE <- as.character(data$Treatment_for_ARE)
-  data$post.srs.hemorrhage <- as.character(data$post.srs.hemorrhage)
-  data$time.to.hemorrhage <- as.numeric(data$time.to.hemorrhage)
-  data$Salvage_treatments <- as.character(data$Salvage_treatments)
-  data$salvage.tx <- as.numeric(data$salvage.tx)
-  data$time.to.salvage <- as.numeric(data$time.to.salvage)
-  data$last_clinical_fu <- as.numeric(data$last_clinical_fu)
-  data$last_MRI_fu <- as.numeric(data$last_MRI_fu)
-  data$last_angio_FU <- as.numeric(data$last_angio_FU)
-  data$ARE_symp_asymp <- as.numeric(data$ARE_symp_asymp)
-  data$RIC <- as.numeric(data$RIC)
-  data$time.to.RIC <- as.numeric(data$time.to.RIC)
-  data$Final_mRS <- as.factor(data$Final_mRS)
-  data$Death.status <- as.factor(data$Death.status)
-  data$number_of_stages <- as.numeric(data$number_of_stages)
-  data$obliteration.status <-as.numeric(data$obliteration.status)
-  data$time.to.obliteration <- as.numeric(data$time.to.obliteration)
-  data$time.to.death <- as.numeric(data$time.to.death)
-  data$obliteration.imaging  <- as.character(data$obliteration.imaging)
-  data$time.salvage.occlusion <-as.numeric(data$time.salvage.occlusion)
-  
-}
+# Step 2: Calculate Obliteration Rate and Time to Obliteration
+temp.final$Obliteration <- ifelse(temp.final$obliteration.status == 1, "Yes", "No")
 
+# Step 3: Create a summary table using tbl_summary
+summary_table <- temp.final %>%
+  select(Group, Obliteration, time.salvage.occlusion) %>%
+  tbl_summary(
+    by = Group,
+    statistic = list(
+      Obliteration ~ "{n} ({p}%)",
+      time.salvage.occlusion ~ "{median} [{p25}, {p75}]"
+    ),
+    missing = "no"
+  ) %>%
+  add_overall() %>%
+  modify_header(label = "**Variable**") %>%
+  bold_labels()
 
+# Print the summary table
+summary_table
 
-######################################################################################################################################
-###################################### FILTER PATIENTS WITHOUT FU, DEFINE OUTCOMES ###################################################
-######################################################################################################################################
-{
-#Create new temporary to define competing events and times to competing events
-temp <- data
-
-#Define last neuroimaging FU time as last MRI or DSA follow-up
-temp$FU.time <- NA
-for (i in 1:nrow(temp)) {
-  temp$FU.time[i] <- with(temp, pmax(temp$last_MRI_fu[i], temp$last_angio_FU[i], na.rm = TRUE))
-}
-
-#Define occlusion in binary regardless of modality used for confirmation
-temp$Occlusion <- NA
-for (i in 1:nrow(temp)) {
-  if (temp$obliteration.status[i]==0){
-    temp$Occlusion[i] <- 0
-  }else{
-    temp$Occlusion[i] <- 1
-  }
-}
-
-#Define RIC deficit (neuro or seizures) in binary and time to RIC deficit, keep only symptomatic ones, discard asymptomatic and headache
-temp$RIC.deficit <- NA
-for (i in 1:nrow(temp)) {
-  if (temp$RIC[i]==0){
-    temp$RIC.deficit[i] <- 0
-  }else{
-    temp$RIC.deficit[i] <- 1
-  }
-}
-
-temp$RIC.deficit.time <- NA
-for (i in 1:nrow(temp)) {
-  if (temp$RIC.deficit[i]==1){
-    temp$RIC.deficit.time[i] <- temp$time.to.RIC[i]
-  }else{
-    temp$RIC.deficit.time[i] <- NA
-  }
-}
-
-#Define death in binary, assigning only death that occurred without other events
-temp$Death <- NA
-for (i in 1:nrow(temp)) {
-  if (temp$Occlusion[i]==0 &
-      temp$post.srs.hemorrhage[i]==0 & 
-      temp$RIC.deficit[i]==0 &
-      temp$salvage.tx[i]==0 &
-      temp$Death.status[i]==1){
-    temp$Death[i] <- 1
-  }else{
-    temp$Death[i] <- 0 
-  }
-}
-
-#Define last FU time, keep the first time-to event for hemorrhage, RIC deficit, death or retreatment and assign FU.time for the rest
-#That's to not allow transition from hemo/RIC deficit/retreatment/favorable to censored
-temp$Last.FU.time <- NA
-for (i in 1:nrow(temp)) {
-  if (temp$post.srs.hemorrhage[i]==1 | temp$RIC.deficit[i]==1 | temp$salvage.tx[i]==1 | temp$Death[i]==1){
-    temp$Last.FU.time[i] <- with(temp, pmin(temp$RIC.deficit.time[i], temp$time.to.hemorrhage[i], temp$time.to.salvage[i], temp$time.to.death[i], na.rm = TRUE))
-  }else{
-    temp$Last.FU.time[i] <- temp$FU.time[i]
-  }
-}
-
-
-
-#Remove patients without follow-up
-temp.final <- temp
-table(temp$Last.FU.time)
-
-# Assuming you have a dataframe named 'temp'
-na_count <- sum(is.na(temp.final$Last.FU.time))
-print(na_count)
-}
-
-# Step 1: Filter only rows where Salvage_treatments is A, B, C, or D
-temp.final <- temp.final[temp.final$Salvage_treatments %in% c("A", "B", "C", "D"), ]
-
-# Step 2: Create an Event column based on conditions related to Salvage_treatments and obliteration status
-temp.final$Event <- NA
-for (i in 1:nrow(temp.final)) {
-  if (temp.final$obliteration.status[i] == 0 & temp.final$Salvage_treatments[i] %in% c("A", "B", "C", "D")) {
-    temp.final$Event[i] <- paste0("Censored_", temp.final$Salvage_treatments[i])
-  } else if (temp.final$obliteration.status[i] == 1 & temp.final$Salvage_treatments[i] == "A") {
-    temp.final$Event[i] <- "Obliteration_A"
-  } else if (temp.final$obliteration.status[i] == 1 & temp.final$Salvage_treatments[i] == "B") {
-    temp.final$Event[i] <- "Obliteration_B"
-  } else if (temp.final$obliteration.status[i] == 1 & temp.final$Salvage_treatments[i] == "C") {
-    temp.final$Event[i] <- "Obliteration_C"
-  } else if (temp.final$obliteration.status[i] == 1 & temp.final$Salvage_treatments[i] == "D") {
-    temp.final$Event[i] <- "Obliteration_D"
-  }
-}
-
-# Step 3: Assign Event Time based on the specific Event
-temp.final$Event.Time <- NA
-for (i in 1:nrow(temp.final)) {
-  if (grepl("Censored", temp.final$Event[i])) {
-    temp.final$Event.Time[i] <- with(temp.final, pmax(temp.final$last_MRI_fu[i], temp.final$last_angio_FU[i], na.rm = TRUE))
-  } else if (grepl("Obliteration", temp.final$Event[i])) {
-    temp.final$Event.Time[i] <- temp.final$time.salvage.occlusion[i]
-  }
-}
-
-# Step 4: Create a grouped Status column for the cumulative incidence analysis
-temp.final$Status <- NA
-for (i in 1:nrow(temp.final)) {
-  if (grepl("Censored", temp.final$Event[i])) {
-    temp.final$Status[i] <- "Censored"
-  } else if (temp.final$Event[i] %in% c("Obliteration_A", "Obliteration_B", "Obliteration_C")) {
-    temp.final$Status[i] <- "Obliteration_ABC"
-  } else if (temp.final$Event[i] == "Obliteration_D") {
-    temp.final$Status[i] <- "Obliteration_D"
-  }
-}
-
-# Convert Status to a factor with descriptive levels, ensuring "Censored" is the first level
-temp.final$Status <- factor(temp.final$Status, 
-                            levels = c("Censored", "Obliteration_ABC", "Obliteration_D"))
-
-# Ensure Event.Time is numeric
-temp.final$Event.Time <- as.numeric(temp.final$Event.Time)
-
-# Step 5: Run the cumulative incidence function using tidycmprsk
-library(tidycmprsk)
-
-# Use the cuminc() function with the grouped factor levels
-cif <- tidycmprsk::cuminc(Surv(Event.Time, Status) ~ 1, data = temp.final)
-
-# Print the cumulative incidence function results to verify
-print(cif)
-
-
-plot <- tidycmprsk::cuminc(Surv(Event.Time, Status) ~ 1, data = temp.final) %>% 
-  ggcuminc(outcome = c("Obliteration_ABC", "Obliteration_D"),
-           theme = theme_minimal()) +
-  labs(x = "Duration of follow-up after radiosurgery (Months)", y = "Cumulative incidence of outcomes") +
-  add_confidence_interval() +
-  scale_x_continuous(breaks =  c(0,12,24,36,48,60,100,150,200)) +
-  add_risktable(theme = theme_risktable_default(),
-                risktable_stats = c("n.risk", "cum.event", "cum.censor"),
-                times = c(0,12,24,36,48,60,100,150,200),
-                stats_label = list(
-                  cum.event = "Events",
-                  n.risk = "Number at risk",
-                  cum.censor = "Censored"))+
-  theme(legend.position = "None",
-        panel.grid.minor = element_blank(),
-        plot.title = element_text(hjust = 0.5),      #center title
-        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),      
-        axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0))) 
-plot
-
-print(plot)
-
-ggsave("Cumulative_Incidence_SRS_Obliteration.png", plot, width = 8, height = 6, dpi = 300)
-
-tbl_cuminc(cif, outcomes = c("Obliteration_ABC", "Obliteration_D"), times = c(12,24,36,48,60))
-#Calculate Incidence and CI of different events for 1,2,3,4,5 years
-Table <- tbl_cuminc(cif, outcomes = c("Obliteration_ABC", "Obliteration_D"), times = c(12,24,36,48,60))
-# Convert the result to a gt table
-gt_table <- as_gt(Table)
-gtsave(gt_table, "Salvage_Obliteration_after_SRS.docx")
+# Step 4: Save the table as a Word document
+gtsave(as_gt(summary_table), "Table_Salvage_Obliteration_Summary_Table.docx")
