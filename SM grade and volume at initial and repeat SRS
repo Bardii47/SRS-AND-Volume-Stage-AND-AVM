@@ -1,0 +1,83 @@
+library(readxl)
+library(ranger)
+library(ggplot2)
+library(dplyr)
+library(ggfortify)
+library(cmprsk)
+library(survival)
+library(gtsummary)
+library(gt)
+library(officer)
+library(ggsurvfit)
+library(stringr)
+library(tidycmprsk)
+
+
+## ------------------------   DATA INSERTION   ------------------------------------
+
+#Read excel file into data frames
+
+library(readxl)
+setwd("/Users/bardii47/Desktop/Porjects/01-Originial/6- Volume-staged AVM")
+X07_analyze_Final_data_volume_staged_AVM <- read_excel("07_analyze_Final_data_volume_staged_AVM.xlsx", sheet = "Repeat.SRS")
+data <- X07_analyze_Final_data_volume_staged_AVM
+
+
+###################################### Table 2 - SRS ###################################################
+# Load the required packages
+library(gtsummary)
+library(gt)
+
+# Ensure columns are numeric
+data$Pre.AVM.Volume <- as.numeric(data$Pre.AVM.Volume)
+data$Post.AVM.Volume <- as.numeric(data$Post.AVM.Volume)
+data$pre.SM.Grade <- as.numeric(data$pre.SM.Grade)
+data$post.SM.Grade <- as.numeric(data$post.SM.Grade)
+
+# Create new columns for analysis
+data$Volume.Reduction <- data$Pre.AVM.Volume - data$Post.AVM.Volume
+data$SM.Downgrade <- ifelse(data$post.SM.Grade < data$pre.SM.Grade, 1, 0)
+
+# Calculate percentage of downgrade
+downgrade_percent <- round(mean(data$SM.Downgrade, na.rm = TRUE) * 100, 1)
+
+# Create the summary table with only the desired columns
+Table_SRS_Volume <- tbl_summary(
+  data,
+  include = c(Pre.AVM.Volume, Post.AVM.Volume, Volume.Reduction, pre.SM.Grade, post.SM.Grade, SM.Downgrade),
+  by = NULL,
+  label = list(
+    Pre.AVM.Volume ~ "Median Pre-AVM Volume (cc)",
+    Post.AVM.Volume ~ "Median Post-AVM Volume (cc)",
+    Volume.Reduction ~ "Median Reduction in Volume (cc)",
+    pre.SM.Grade ~ "Median Pre-SM Grade",
+    post.SM.Grade ~ "Median Post-SM Grade",
+    SM.Downgrade ~ "Downgraded SM Grade"
+  ),
+  statistic = list(
+    all_continuous() ~ "{median} ({p25}, {p75})", # Median with IQR
+    all_categorical() ~ "{n} ({p}%)" # Count and percentage for categorical variables
+  ),
+  type = list(
+    pre.SM.Grade ~ "continuous", # Force SM grades to be continuous
+    post.SM.Grade ~ "continuous", # Force SM grades to be continuous
+    SM.Downgrade ~ "categorical" # Treat downgrade as categorical
+  ),
+  digits = list(
+    all_continuous() ~ 1, # One decimal place for continuous variables
+    all_categorical() ~ c(0, 1) # No decimal for counts, 1 decimal for percentages
+  ),
+  missing = "ifany", # Include information about missing data if present
+  missing_text = "Unknown"
+) %>%
+  modify_caption("**Table: Pre- and Post-AVM Volume, SM Grades, and Downgrade**") %>%
+  bold_labels()
+
+
+Table_SRS_Volume
+
+# Convert to gt table for saving
+gt_table <- as_gt(Table_SRS_Volume)
+
+# Save the table to a Word document
+gtsave(gt_table, "Volume_And_SM_Grade_Table.docx")
