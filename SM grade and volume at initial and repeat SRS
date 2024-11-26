@@ -24,6 +24,7 @@ data <- X07_analyze_Final_data_volume_staged_AVM
 
 
 ###################################### Table 2 - SRS ###################################################
+###################################### Table 2 - SRS ###################################################
 # Load the required packages
 library(gtsummary)
 library(gt)
@@ -36,6 +37,7 @@ data$post.SM.Grade <- as.numeric(data$post.SM.Grade)
 
 # Create new columns for analysis
 data$Volume.Reduction <- data$Pre.AVM.Volume - data$Post.AVM.Volume
+data$Percent.Reduction <- (data$Volume.Reduction / data$Pre.AVM.Volume) * 100
 data$SM.Downgrade <- ifelse(data$post.SM.Grade < data$pre.SM.Grade, 1, 0)
 
 # Calculate percentage of downgrade
@@ -44,12 +46,13 @@ downgrade_percent <- round(mean(data$SM.Downgrade, na.rm = TRUE) * 100, 1)
 # Create the summary table with only the desired columns
 Table_SRS_Volume <- tbl_summary(
   data,
-  include = c(Pre.AVM.Volume, Post.AVM.Volume, Volume.Reduction, pre.SM.Grade, post.SM.Grade, SM.Downgrade),
+  include = c(Pre.AVM.Volume, Post.AVM.Volume, Volume.Reduction, Percent.Reduction, pre.SM.Grade, post.SM.Grade, SM.Downgrade),
   by = NULL,
   label = list(
     Pre.AVM.Volume ~ "Median Pre-AVM Volume (cc)",
     Post.AVM.Volume ~ "Median Post-AVM Volume (cc)",
     Volume.Reduction ~ "Median Reduction in Volume (cc)",
+    Percent.Reduction ~ "Median Percentage Reduction in Volume (%)",
     pre.SM.Grade ~ "Median Pre-SM Grade",
     post.SM.Grade ~ "Median Post-SM Grade",
     SM.Downgrade ~ "Downgraded SM Grade"
@@ -72,7 +75,6 @@ Table_SRS_Volume <- tbl_summary(
 ) %>%
   modify_caption("**Table: Pre- and Post-AVM Volume, SM Grades, and Downgrade**") %>%
   bold_labels()
-
 
 Table_SRS_Volume
 
