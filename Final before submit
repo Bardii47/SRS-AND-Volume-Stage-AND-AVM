@@ -748,6 +748,7 @@ plot <- tidycmprsk::cuminc(Surv(Event.Time, Status) ~ 1, data = temp.final) %>%
         plot.title = element_text(hjust = 0.5),  # Center title
         axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),      
         axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0))) +
+  annotate(geom = "text", x = 0, y = 1, label = "A", hjust = 0, vjust = 1, fontface = "bold", size = 12) +  # Add "A" in the upper left
   annotate(geom = "text", x = 250, y = 0.50, label = "Obliteration") +
   annotate(geom = "text", x = 250, y = 0.36, label = "Retreatment") +
   annotate(geom = "text", x = 250, y = 0.04, label = "Death")
@@ -794,7 +795,6 @@ plot_volume_group <- cif_volume_subgroup %>%
   ggcuminc(outcome = c("1"),
            theme = theme_minimal(base_family = "Arial")) +  # Minimal theme with a standard font
   labs(x = "Duration of follow-up after radiosurgery (Months)", y = "Cumulative incidence of outcomes") +
-  ggtitle("Obliteration Rate Based on Volume 15 cc Subgroups") +  # Add title
   add_confidence_interval() +
   scale_x_continuous(breaks = c(0, 12, 24, 36, 48, 60, 100, 150, 200)) +
   add_risktable(theme = theme_risktable_default(),
@@ -808,9 +808,9 @@ plot_volume_group <- cif_volume_subgroup %>%
         panel.grid.minor = element_blank(),
         plot.title = element_text(hjust = 0.5),  # Center title
         axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),      
-        axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0))) +
-  scale_color_grey(start = 0.1, end = 0.1) +  # Set both color and fill to same grayscale value
-  scale_fill_grey(start = 0.1, end = 0.1)    # Set both color and fill to same grayscale value
+        axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)))+
+annotate(geom = "text", x = 0, y = 1, label = "B", hjust = 0, vjust = 1, fontface = "bold", size = 12) +  # Add "A" in the upper left
+  annotate(geom = "text", x = 250, y = 0.01, label = "P<0.001", hjust = 0, vjust = 0, fontface = "italic", size = 5)  # Add "P<0.001"  
 
 # Print the plot
 print(plot_volume_group)
@@ -860,7 +860,6 @@ plot_margin_group <- cif_margin_subgroup %>%
   ggcuminc(outcome = c("1"),
            theme = theme_minimal(base_family = "Arial")) +  # Minimal theme with a standard font
   labs(x = "Duration of follow-up after radiosurgery (Months)", y = "Cumulative incidence of outcomes") +
-  ggtitle("Obliteration Rate Based on Prescribed Dose 17 Gy") +  # Add title
   add_confidence_interval() +
   scale_x_continuous(breaks = c(0, 12, 24, 36, 48, 60, 100, 150, 200)) +
   add_risktable(theme = theme_risktable_default(),
@@ -875,9 +874,8 @@ plot_margin_group <- cif_margin_subgroup %>%
         plot.title = element_text(hjust = 0.5),  # Center title
         axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),      
         axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0))) +
-  scale_color_grey(start = 0.1, end = 0.1) +  # Set both color and fill to same grayscale value
-  scale_fill_grey(start = 0.1, end = 0.1)    # Set both color and fill to same grayscale value
-
+  annotate(geom = "text", x = 0, y = 1, label = "C", hjust = 0, vjust = 1, fontface = "bold", size = 12) +  # Add "A" in the upper left
+  annotate(geom = "text", x = 250, y = 0.01, label = "P<0.001", hjust = 0, vjust = 0, fontface = "italic", size = 5)  # Add "P<0.001"
 # Print the plot
 print(plot_margin_group)
 
@@ -898,6 +896,35 @@ gt_table_margin <- as_gt(Table_margin)
 
 # Save the table for outcome 1 to a Word document
 gtsave(gt_table_margin, "Obliteration_margin_dose_subgroup_after_SRS.docx")
+
+# Load necessary library
+library(cmprsk)
+
+# Filter the dataset to include only rows where the event is "Obliteration" (Status = 1)
+temp.final_obliteration <- temp.final[temp.final$Status == 1, ]
+
+# Ensure there are no missing values in relevant columns for analysis
+temp.final_obliteration_clean <- temp.final_obliteration[!is.na(temp.final_obliteration$Event.Time) & 
+                                                           !is.na(temp.final_obliteration$Opt_volume_15) & 
+                                                           !is.na(temp.final_obliteration$Opt_margin_17), ]
+
+# Perform Gray's Test for Volume Subgroups (Volume ≥15 cc vs. <15 cc)
+gray_test_volume <- cmprsk::crr(temp.final_obliteration_clean$Event.Time, 
+                                rep(1, nrow(temp.final_obliteration_clean)),  # All are Status = 1 (Obliteration)
+                                cov1 = as.numeric(temp.final_obliteration_clean$Opt_volume_15 == "Volume > 15 cc"))
+
+# Extract and display the p-value for Volume Subgroups
+p_value_volume <- summary(gray_test_volume)$coef[1, 5]
+cat("P-value for Volume Subgroups (Obliteration Only):", p_value_volume, "\n")
+
+# Perform Gray's Test for Margin Dose Subgroups (Margin Dose >17 Gy vs. ≤17 Gy)
+gray_test_margin <- cmprsk::crr(temp.final_obliteration_clean$Event.Time, 
+                                rep(1, nrow(temp.final_obliteration_clean)),  # All are Status = 1 (Obliteration)
+                                cov1 = as.numeric(temp.final_obliteration_clean$Opt_margin_17 == "Margin Dose > 17 Gy"))
+
+# Extract and display the p-value for Margin Subgroups
+p_value_margin <- summary(gray_test_margin)$coef[1, 5]
+cat("P-value for Margin Subgroups (Obliteration Only):", p_value_margin, "\n")
 
 
 ########################################Regression###############################################################################      
