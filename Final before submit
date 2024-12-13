@@ -787,7 +787,7 @@ cif_volume_subgroup <- tidycmprsk::cuminc(Surv(Event.Time, Status) ~ Opt_volume_
 library(ragg)
 
 # Save the plot as a TIFF with ZIP compression
-agg_tiff("CIF_Occlusion_Volume_Group_Plot_Grayscale_SameColor.tiff", width = 14048, height = 9744, res = 1200, units = "px")
+agg_tiff("CIF_Occlusion_Volume_Group_Plot_Grayscale_SameColor.tiff", width = 14048, height = 9744, res = 1200, units = "px", compression = "zip")
 
 # Create and plot the CIF for tumor volume subgroups with explicit grayscale adjustments
 plot_volume_group <- cif_volume_subgroup %>% 
@@ -853,7 +853,7 @@ cif_margin_subgroup <- tidycmprsk::cuminc(Surv(Event.Time, Status) ~ Opt_margin_
 library(ragg)
 
 # Save the plot as a TIFF with ZIP compression
-agg_tiff("CIF_occlusion_Margin_Dose_Plot_Grayscale_SameColor.tiff", width = 14048, height = 9744, res = 1200, units = "px")
+agg_tiff("CIF_occlusion_Margin_Dose_Plot_Grayscale_SameColor.tiff", width = 14048, height = 9744, res = 1200, units = "px", compression = "zip")
 
 # Create and plot the CIF for margin dose subgroups with explicit grayscale adjustments
 plot_margin_group <- cif_margin_subgroup %>% 
