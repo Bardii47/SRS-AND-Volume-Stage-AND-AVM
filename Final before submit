@@ -288,8 +288,8 @@ dev.off()
 
 
 #Calculate Incidence and CI of different events for 1,2,3,4,5 years
-tbl_cuminc(cif, outcomes = c(1), times = c(12,24,36,48,60))
-Table <- tbl_cuminc(cif, outcomes = c(1,2), times = c(12,24,36,48,60))
+tbl_cuminc(cif, outcomes = c(1), times = c(12,24,36,48,60,120))
+Table <- tbl_cuminc(cif, outcomes = c(1,2), times = c(12,24,36,48,60,120))
 # Convert the result to a gt table
 gt_table <- as_gt(Table)
 gtsave(gt_table, "Fav_after_SRS.docx")
@@ -760,9 +760,9 @@ print(plot)
 dev.off()
 
 
-tbl_cuminc(cif, outcomes = c(1), times = c(12,24,36,48,60))
+tbl_cuminc(cif, outcomes = c(1), times = c(12,24,36,48,60,120))
 #Calculate Incidence and CI of different events for 1,2,3,4,5 years
-Table <- tbl_cuminc(cif, outcomes = c(1,2), times = c(12,24,36,48,60))
+Table <- tbl_cuminc(cif, outcomes = c(1,2), times = c(12,24,36,48,60,120))
 # Convert the result to a gt table
 gt_table <- as_gt(Table)
 gtsave(gt_table, "Obliteration_after_SRS.docx")
@@ -809,7 +809,7 @@ plot_volume_group <- cif_volume_subgroup %>%
         plot.title = element_text(hjust = 0.5),  # Center title
         axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),      
         axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)))+
-annotate(geom = "text", x = 0, y = 1, label = "B", hjust = 0, vjust = 1, fontface = "bold", size = 12) +  # Add "A" in the upper left
+  annotate(geom = "text", x = 0, y = 1, label = "B", hjust = 0, vjust = 1, fontface = "bold", size = 12) +  # Add "A" in the upper left
   annotate(geom = "text", x = 250, y = 0.01, label = "P<0.001", hjust = 0, vjust = 0, fontface = "italic", size = 5)  # Add "P<0.001"  
 
 # Print the plot
@@ -822,7 +822,7 @@ dev.off()
 library(cmprsk)
 
 # Create a table for the cumulative incidence (for outcome 1)
-Table <- tbl_cuminc(cif_volume_subgroup, outcomes = c(1), times = c(12, 24, 36, 48, 60))
+Table <- tbl_cuminc(cif_volume_subgroup, outcomes = c(1), times = c(12, 24, 36, 48, 60,120))
 
 # Convert the result to a gt table for better presentation
 library(gt)
@@ -886,7 +886,7 @@ dev.off()
 library(cmprsk)
 
 # Create a table for the cumulative incidence (for outcome 1)
-Table_margin <- tbl_cuminc(cif_margin_subgroup, outcomes = c(1), times = c(12, 24, 36, 48, 60))
+Table_margin <- tbl_cuminc(cif_margin_subgroup, outcomes = c(1), times = c(12, 24, 36, 48, 60,120))
 
 # Convert the result to a gt table for better presentation
 library(gt)
@@ -1402,9 +1402,9 @@ dev.off()
 ggsave("Cumulative_Incidence_Hemorrhage.png", plot, width = 8, height = 6, dpi = 300)
 
 #Calculate Incidence and CI of different events for 1,2,3,4,5 years
-tbl_cuminc(cif, outcomes = c(1), times = c(12,24,36,48,60))
+tbl_cuminc(cif, outcomes = c(1), times = c(12,24,36,48,60,120))
 
-Table <- tbl_cuminc(cif, outcomes = c(1), times = c(12,24,36,48,60))
+Table <- tbl_cuminc(cif, outcomes = c(1), times = c(12,24,36,48,60,120))
 # Convert the result to a gt table
 gt_table <- as_gt(Table)
 gtsave(gt_table, "Hemorrhage.docx")
@@ -1594,9 +1594,9 @@ dev.off()
 
 ggsave("Cumulative_Incidence_RIC.png", plot, width = 8, height = 6, dpi = 300)
 #Calculate Incidence and CI of different events for 1,2,3,4,5 years
-tbl_cuminc(cif, outcomes = c(1), times = c(12,24,36,48,60))
+tbl_cuminc(cif, outcomes = c(1), times = c(12,24,36,48,60,120))
 
-Table <- tbl_cuminc(cif, outcomes = c(1), times = c(12,24,36,48,60))
+Table <- tbl_cuminc(cif, outcomes = c(1), times = c(12,24,36,48,60,120))
 # Convert the result to a gt table
 gt_table <- as_gt(Table)
 gtsave(gt_table, "RIC.docx")
