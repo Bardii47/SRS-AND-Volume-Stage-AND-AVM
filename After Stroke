@@ -1,0 +1,2418 @@
+library(readxl)
+library(ranger)
+library(ggplot2)
+library(dplyr)
+library(ggfortify)
+library(cmprsk)
+library(survival)
+library(gtsummary)
+library(gt)
+library(officer)
+library(ggsurvfit)
+library(stringr)
+library(tidycmprsk)
+
+
+## ------------------------   DATA INSERTION   ------------------------------------
+
+#Read excel file into data frames
+setwd("/Users/bardii47/Desktop/Analyses/06-Volumestaged")
+library(readxl)
+X06_analyze_Final_data_volume_staged_AVM <- read_excel("06_analyze_Final_data_volume_staged_AVM.xlsx")
+data <- X06_analyze_Final_data_volume_staged_AVM
+
+{
+  data$Age_at_diagnosis <- as.numeric(data$Age_at_diagnosis)
+  data$period_dx_to_hem <- as.numeric(data$period_dx_to_hem)
+  data$avm_type <- as.factor(data$avm_type)
+  data$S_size <- as.factor(data$S_size)
+  data$SM_location <- as.factor(data$SM_location)
+  data$SM_vein <- as.factor(data$SM_vein)
+  data$SM_grade <- as.factor(data$SM_grade)
+  data$mRS_prior <- as.factor(data$mRS_prior)
+  data$age_at_srs <- as.numeric(data$age_at_srs)
+  data$max_dm_1st_GK_cm <- as.numeric(data$max_dm_1st_GK_cm)
+  data$`Total_AVM_Volume_(cc)` <- as.numeric(data$`Total_AVM_Volume_(cc)`)
+  data$max_dose_1st_Gy <- as.numeric(data$max_dose_1st_Gy)
+  data$margin_dose_1st_Gy <- as.numeric(data$margin_dose_1st_Gy)
+  data$`isodose(%)_dose_1st_Gy`<- as.numeric(data$`isodose(%)_dose_1st_Gy`)
+  data$`Volume_1st_GK(cc)` <- as.numeric(data$`Volume_1st_GK(cc)`)
+  data$`12_Gy_Volume(cc)` <- as.numeric(data$`12_Gy_Volume(cc)`)
+  data$`Time_between_stages_1-2_(months)` <- as.numeric(data$`Time_between_stages_1-2_(months)`)
+  data$`Max_Dose_2nd_(Gy)` <- as.numeric(data$`Max_Dose_2nd_(Gy)`)
+  data$Margin_2nd_GK <- as.numeric(data$Margin_2nd_GK)
+  data$`isodose(%)_2nd_GK` <- as.numeric(data$`isodose(%)_2nd_GK`)
+  data$volume_2nd_GK_cc <- as.numeric(data$volume_2nd_GK_cc)
+  data$`12_Gy _Volume_2nd(cc)` <- as.numeric(data$`12_Gy _Volume_2nd(cc)`)
+  data$`Time_between_stages_2-3_(months)` <- as.numeric(data$`Time_between_stages_2-3_(months)`)
+  data$`Max_Dose_3rd_GK(Gy)`<- as.numeric(data$`Max_Dose_3rd_GK(Gy)`)
+  data$Margin_3rd_GK <- as.numeric(data$Margin_3rd_GK)
+  data$`isodose(%)_3rd_GK` <- as.numeric(data$`isodose(%)_3rd_GK`)
+  data$volume_3rd_GK <- as.numeric(data$volume_3rd_GK)
+  data$`12_Gy_Volume_3rd_GK(cc)` <- as.numeric(data$`12_Gy_Volume_3rd_GK(cc)`)
+  data$`Time_between_stages_3-4_(months)` <- as.numeric(data$`Time_between_stages_3-4_(months)`)
+  data$Max_Dose_4th_GK <- as.numeric(data$Max_Dose_4th_GK)
+  data$Margin_4th_GK <- as.numeric(data$Margin_4th_GK)
+  data$`Isodose(%)_4th_GK` <- as.numeric(data$`Isodose(%)_4th_GK`)
+  data$`Volume(cc)_4th_GK` <- as.numeric(data$`Volume(cc)_4th_GK`)
+  data$`12_Gy_Volume(cc)_4th_GK` <- as.numeric(data$`12_Gy_Volume(cc)_4th_GK`)
+  data$ARE_Yes_N <- as.character(data$ARE_Yes_N)
+  data$time.to.ARE <-as.numeric(data$time.to.ARE)
+  data$Temporary_or_permanent_symptomatic_ARE <- as.character(data$Temporary_or_permanent_symptomatic_ARE)
+  data$Imaging_ARE <- as.character(data$Imaging_ARE)
+  data$Treatment_for_ARE <- as.character(data$Treatment_for_ARE)
+  data$post.srs.hemorrhage <- as.character(data$post.srs.hemorrhage)
+  data$time.to.hemorrhage <- as.numeric(data$time.to.hemorrhage)
+  data$Salvage_treatments <- as.character(data$Salvage_treatments)
+  data$salvage.tx <- as.numeric(data$salvage.tx)
+  data$time.to.salvage <- as.numeric(data$time.to.salvage)
+  data$last_clinical_fu <- as.numeric(data$last_clinical_fu)
+  data$last_MRI_fu <- as.numeric(data$last_MRI_fu)
+  data$last_angio_FU <- as.numeric(data$last_angio_FU)
+  data$ARE_symp_asymp <- as.numeric(data$ARE_symp_asymp)
+  data$RIC <- as.numeric(data$RIC)
+  data$time.to.RIC <- as.numeric(data$time.to.RIC)
+  data$Final_mRS <- as.factor(data$Final_mRS)
+  data$Death.status <- as.factor(data$Death.status)
+  data$number_of_stages <- as.numeric(data$number_of_stages)
+  data$obliteration.status <-as.numeric(data$obliteration.status)
+  data$time.to.obliteration <- as.numeric(data$time.to.obliteration)
+  data$time.to.death <- as.numeric(data$time.to.death)
+  data$obliteration.imaging  <- as.character(data$obliteration.imaging)
+  
+}
+
+
+table(data$obliteration.status)
+######################################################################################################################################
+###################################### FILTER PATIENTS WITHOUT FU, DEFINE OUTCOMES ###################################################
+######################################################################################################################################
+
+#Create new temporary to define competing events and times to competing events
+temp <- data
+
+#Define last neuroimaging FU time as last MRI or DSA follow-up
+temp$FU.time <- NA
+for (i in 1:nrow(temp)) {
+  temp$FU.time[i] <- with(temp, pmax(temp$last_MRI_fu[i], temp$last_angio_FU[i], na.rm = TRUE))
+}
+
+#Define occlusion in binary regardless of modality used for confirmation
+temp$Occlusion <- NA
+for (i in 1:nrow(temp)) {
+  if (temp$obliteration.status[i]==0){
+    temp$Occlusion[i] <- 0
+  }else{
+    temp$Occlusion[i] <- 1
+  }
+}
+
+#Define RIC deficit (neuro or seizures) in binary and time to RIC deficit, keep only symptomatic ones, discard asymptomatic and headache
+temp$RIC.deficit <- NA
+for (i in 1:nrow(temp)) {
+  if (temp$RIC[i]==0){
+    temp$RIC.deficit[i] <- 0
+  }else{
+    temp$RIC.deficit[i] <- 1
+  }
+}
+
+temp$RIC.deficit.time <- NA
+for (i in 1:nrow(temp)) {
+  if (temp$RIC.deficit[i]==1){
+    temp$RIC.deficit.time[i] <- temp$time.to.RIC[i]
+  }else{
+    temp$RIC.deficit.time[i] <- NA
+  }
+}
+
+#Define death in binary, assigning only death that occurred without other events
+temp$Death <- NA
+for (i in 1:nrow(temp)) {
+  if (temp$Occlusion[i]==0 &
+      temp$post.srs.hemorrhage[i]==0 & 
+      temp$RIC.deficit[i]==0 &
+      temp$salvage.tx[i]==0 &
+      temp$Death.status[i]==1){
+    temp$Death[i] <- 1
+  }else{
+    temp$Death[i] <- 0 
+  }
+}
+
+#Define last FU time, keep the first time-to event for hemorrhage, RIC deficit, death or retreatment and assign FU.time for the rest
+#That's to not allow transition from hemo/RIC deficit/retreatment/favorable to censored
+temp$Last.FU.time <- NA
+for (i in 1:nrow(temp)) {
+  if (temp$post.srs.hemorrhage[i]==1 | temp$RIC.deficit[i]==1 | temp$salvage.tx[i]==1 | temp$Death[i]==1){
+    temp$Last.FU.time[i] <- with(temp, pmin(temp$RIC.deficit.time[i], temp$time.to.hemorrhage[i], temp$time.to.salvage[i], temp$time.to.death[i], na.rm = TRUE))
+  }else{
+    temp$Last.FU.time[i] <- temp$FU.time[i]
+  }
+}
+
+
+
+#Remove patients without follow-up
+temp.final <- temp
+table(temp$Last.FU.time)
+
+# Assuming you have a dataframe named 'temp'
+na_count <- sum(is.na(temp.final$Last.FU.time))
+print(na_count)
+
+
+######################################################################################################################################
+###################################### CIF ###################################################
+######################################################################################################################################
+
+{
+  # Load necessary libraries
+  library(ranger)
+  library(ggplot2)
+  library(dplyr)
+  library(ggfortify)
+  library(cmprsk)
+  library(survival)
+  library(dplyr)
+  library(gtsummary)
+  library(gt)
+  library(officer)
+  library(dplyr)
+  library(gtsummary)
+  library(gt)
+  library(officer)
+  library(ggsurvfit)
+  library(stringr)
+  library(tidycmprsk)
+}
+
+
+######################################################################################################################################
+############### ---------------------------  CIF analysis for favorable outcome ---------------------------###########################
+######################################################################################################################################
+
+
+#Define the different competing event types (includes obliteration.status, RIC deficit, hemorrhage, re-treatment, death without event)
+temp.final$Event <- NA
+for (i in 1:nrow(temp.final)) {
+  if (temp.final$obliteration.status[i]==0 & temp.final$post.srs.hemorrhage[i]==0 & temp.final$RIC.deficit[i]==0 & temp.final$salvage.tx[i]==0 & temp.final$Death[i]==0){
+    temp.final$Event[i] <- "Censored"      #Censored without any event happening at any time in FU
+  }else if (temp.final$obliteration.status[i]==1 & temp.final$post.srs.hemorrhage[i]==0 & temp.final$RIC.deficit[i]==0 & temp.final$salvage.tx[i]==0 & temp.final$Death[i]==0){
+    temp.final$Event[i] <- "Favorable"     #obliteration.status without hemorrhage, deficit at any time in FU
+  }else if (temp.final$salvage.tx[i]==1 & temp.final$post.srs.hemorrhage[i]==0 & temp.final$RIC.deficit[i]==0){
+    temp.final$Event[i] <- "Unfavorable"   #Retreatment without obliteration.status, RIC deficit, hemorrhage
+  }else if (temp.final$Death[i]==1){
+    temp.final$Event[i] <- "Death"         #Eventless non-AVM related death
+  }else if (temp.final$post.srs.hemorrhage[i]==1 | temp.final$RIC.deficit[i]==1){
+    if (!is.na(temp.final$RIC.deficit.time[i] & temp.final$time.to.hemorrhage[i])){
+      if (temp.final$RIC.deficit.time[i]>temp.final$time.to.hemorrhage[i]){
+        temp.final$Event[i] <- "Unfavorable"
+      }else{
+        temp.final$Event[i] <- "Unfavorable"
+      }
+    }else if (!is.na(temp.final$RIC.deficit.time[i])){
+      temp.final$Event[i] <- "Unfavorable"
+    }else{
+      temp.final$Event[i] <- "Unfavorable" 
+    }
+  }  
+}
+
+#Define event times for the different competing events
+temp.final$Event.Time <- NA
+for (i in 1:nrow(temp.final)) {
+  if (temp.final$Event[i]=="Censored"){
+    temp.final$Event.Time[i] <- with(temp.final, pmax(temp.final$last_MRI_fu[i], temp.final$last_angio_FU[i], na.rm = TRUE))
+  }else if (temp.final$Event[i]=="Favorable"){
+    temp.final$Event.Time[i] <- temp.final$time.to.obliteration[i]
+  }else if (temp.final$Event[i]=="Unfavorable"){
+    temp.final$Event.Time[i] <- with(temp.final, pmin(temp.final$RIC.deficit.time[i], temp.final$time.to.hemorrhage[i],temp.final$time.to.salvage[i], na.rm = TRUE))
+  }else{
+    temp.final$Event.Time[i] <- temp.final$time.to.death[i]
+  }
+}
+
+#Make this numerical and as.factor
+temp.final$Status <- NA
+for (i in 1:nrow(temp.final)) {
+  if (temp.final$Event[i]=="Censored"){
+    temp.final$Status [i] <- 0
+  }else if (temp.final$Event[i]=="Favorable"){
+    temp.final$Status [i] <- 1
+  }else if (temp.final$Event[i]=="Unfavorable"){
+    temp.final$Status [i] <- 2
+  }else{
+    temp.final$Status [i] <- 3
+  }
+}
+
+temp.final$Status = as.factor(temp.final$Status)
+
+
+#Cumulative incidence function for favorable outcome
+cif <- tidycmprsk::cuminc(Surv(Event.Time, Status) ~ 1, data=temp.final)
+
+# Load ragg package
+library(ragg)
+
+# Save the plot as a TIFF with ZIP compression
+agg_tiff("CIF_Favorable_plot.tiff", width = 750, height = 600, res = 75, units = "px", compression = "zip")
+
+# Create and plot the CIF function
+plot <- tidycmprsk::cuminc(Surv(Event.Time, Status) ~ 1, data = temp.final) %>% 
+  ggcuminc(outcome = c("1"),
+           theme = theme_minimal()) +
+  labs(x = "Duration of follow-up after radiosurgery (Months)", y = "Cumulative incidence of outcomes") +
+  add_confidence_interval() +
+  scale_x_continuous(breaks =  c(0,12,24,36,48,60,100,150,200)) +
+  add_risktable(theme = theme_risktable_default(),
+                risktable_stats = c("n.risk", "cum.event", "cum.censor"),
+                times = c(0,12,24,36,48,60,100,150,200),
+                stats_label = list(
+                  cum.event = "Events",
+                  n.risk = "Number at risk",
+                  cum.censor = "Censored")) +
+  theme(legend.position = "None",
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(hjust = 0.5),      # center title
+        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),      
+        axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0))) +
+  annotate(geom="text", x=200, y=0.35, label="Favorable")
+
+# Print the plot
+print(plot)
+
+# Close the graphics device
+dev.off()
+
+
+#Calculate Incidence and CI of different events for 1,2,3,4,5 years
+tbl_cuminc(cif, outcomes = c(1), times = c(12,24,36,48,60,120))
+Table <- tbl_cuminc(cif, outcomes = c(1,2), times = c(12,24,36,48,60,120))
+# Convert the result to a gt table
+gt_table <- as_gt(Table)
+gtsave(gt_table, "Fav_after_SRS.docx")
+
+
+########################################Regression###############################################################################      
+####Manipulate variables and outcome
+#Make new variable for Status so that only Occlusion=1 and all other are Censored=0
+
+# 1. Create Cox.Status based on fave.status
+temp.final$Cox.Status <- NA
+for (i in 1:nrow(temp.final)) {
+  if (temp.final$Status[i]==1){
+    temp.final$Cox.Status[i] <-1
+  }else{
+    temp.final$Cox.Status[i] <- 0
+  }
+}
+
+
+# Divide into 2 age groups - PEDS (<=18) and ADULTS (>18)
+temp.final$Opt_age <- NA  # Initialize Opt_age with NA
+
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$age_at_srs[i])) {  # Check if age_at_srs is not NA
+    if (temp.final$age_at_srs[i] > 18) {
+      temp.final$Opt_age[i] <- 1  # ADULT
+    } else {
+      temp.final$Opt_age[i] <- 0  # PEDS
+    }
+  }
+}
+
+# Optionally, convert Opt_age to a factor for categorical analysis
+temp.final$Opt_age <- as.factor(temp.final$Opt_age)
+
+# Divide into 2 volumes  
+temp.final$Opt_volume_10 <- NA
+
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$`Volume_1st_GK(cc)`[i])) {
+    if (temp.final$`Volume_1st_GK(cc)`[i] >= 10) {
+      temp.final$Opt_volume_10[i] <- 1
+    } else {
+      temp.final$Opt_volume_10[i] <- 0
+    }
+  }
+}
+
+# Convert to factor
+temp.final$Opt_volume_10 <- as.factor(temp.final$Opt_volume_10)
+
+# Divide into 2 volumes  
+temp.final$Opt_volume_15 <- NA
+
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$`Volume_1st_GK(cc)`[i])) {
+    if (temp.final$`Volume_1st_GK(cc)`[i] >= 15) {
+      temp.final$Opt_volume_15[i] <- 1
+    } else {
+      temp.final$Opt_volume_15[i] <- 0
+    }
+  }
+}
+
+# Convert to factor
+temp.final$Opt_volume_15 <- as.factor(temp.final$Opt_volume_15)
+
+# Divide into 2 volumes  
+temp.final$Opt_volume_20 <- NA
+
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$`Volume_1st_GK(cc)`[i])) {
+    if (temp.final$`Volume_1st_GK(cc)`[i] >= 20) {
+      temp.final$Opt_volume_20[i] <- 1
+    } else {
+      temp.final$Opt_volume_20[i] <- 0
+    }
+  }
+}
+
+# Convert to factor
+temp.final$Opt_volume_20 <- as.factor(temp.final$Opt_volume_20)
+
+# Divide into 2 volumes  
+temp.final$Opt_volume_25 <- NA
+
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$`Volume_1st_GK(cc)`[i])) {
+    if (temp.final$`Volume_1st_GK(cc)`[i] >= 25) {
+      temp.final$Opt_volume_25[i] <- 1
+    } else {
+      temp.final$Opt_volume_25[i] <- 0
+    }
+  }
+}
+
+# Convert to factor
+temp.final$Opt_volume_25 <- as.factor(temp.final$Opt_volume_25)
+
+
+# Divide into 2 location groups: Deep (brainstem/BG) and Surface (lobar/cerebellum)
+temp.final$Location <- NA  # Initialize a new column
+
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$location[i])) {  # Check for non-NA values
+    if (str_detect(temp.final$location[i], "2") |
+        str_detect(temp.final$location[i], "3")) {
+      temp.final$Location[i] <- 1  # Deep location
+    } else {
+      temp.final$Location[i] <- 0  # Surface location
+    }
+  }
+}
+
+# Convert the Location column to a factor
+temp.final$Location <- as.factor(temp.final$Location)
+
+#Dichotomize MARGIN DOSE 
+temp.final$Opt_margin_15 <- NA
+for (i in 1:nrow(temp.final)){
+  if (temp.final$margin_dose_1st_Gy [i] > 15){
+    temp.final$Opt_margin_15[i] <- 1
+  }else{
+    temp.final$Opt_margin_15[i] <- 0
+  }
+}
+temp.final$Opt_margin_15 = as.factor(temp.final$Opt_margin_15)
+
+
+#Dichotomize MARGIN DOSE 
+temp.final$Opt_margin_16 <- NA
+for (i in 1:nrow(temp.final)){
+  if (temp.final$margin_dose_1st_Gy [i] > 16){
+    temp.final$Opt_margin_16[i] <- 1
+  }else{
+    temp.final$Opt_margin_16[i] <- 0
+  }
+}
+temp.final$Opt_margin_16 = as.factor(temp.final$Opt_margin_16)
+
+#Dichotomize MARGIN DOSE 
+temp.final$Opt_margin_17 <- NA
+for (i in 1:nrow(temp.final)){
+  if (temp.final$margin_dose_1st_Gy [i] > 17){
+    temp.final$Opt_margin_17[i] <- 1
+  }else{
+    temp.final$Opt_margin_17[i] <- 0
+  }
+}
+temp.final$Opt_margin_17 = as.factor(temp.final$Opt_margin_17)
+
+#Dichotomize MARGIN DOSE 
+temp.final$Opt_margin_18 <- NA
+for (i in 1:nrow(temp.final)){
+  if (temp.final$margin_dose_1st_Gy [i] > 18){
+    temp.final$Opt_margin_18[i] <- 1
+  }else{
+    temp.final$Opt_margin_18[i] <- 0
+  }
+}
+temp.final$Opt_margin_18 = as.factor(temp.final$Opt_margin_18)  
+
+
+#Dichotomize MARGIN DOSE 
+temp.final$Opt_margin_19 <- NA
+for (i in 1:nrow(temp.final)){
+  if (temp.final$margin_dose_1st_Gy [i] > 19){
+    temp.final$Opt_margin_19[i] <- 1
+  }else{
+    temp.final$Opt_margin_19[i] <- 0
+  }
+}
+temp.final$Opt_margin_19 = as.factor(temp.final$Opt_margin_19)  
+
+
+#Dichotomize MARGIN DOSE 
+temp.final$Opt_margin_20 <- NA
+for (i in 1:nrow(temp.final)){
+  if (temp.final$margin_dose_1st_Gy [i] > 20){
+    temp.final$Opt_margin_20[i] <- 1
+  }else{
+    temp.final$Opt_margin_20[i] <- 0
+  }
+}
+temp.final$Opt_margin_20 = as.factor(temp.final$Opt_margin_20)  
+
+# Assuming 'gender' column contains "M" and "F" values
+temp.final$Gender <- NA  # Create new column
+
+# Loop to assign 1 for 'M' and 0 for 'F'
+for (i in 1:nrow(temp.final)) {
+  if (temp.final$gender[i] == "M") {
+    temp.final$Gender[i] <- 1
+  } else {
+    temp.final$Gender[i] <- 0
+  }
+}
+
+temp.final$Gender <- as.factor(temp.final$Gender)
+
+# Load required library
+library(survival)
+
+# Create a new column 'stage.number' initialized to NA
+temp.final$stage.number <- NA
+
+# Assign the factor level based on 'number_of_stages'
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$number_of_stages[i])) {  # Check if the value is not NA
+    if (temp.final$number_of_stages[i] == 2) {
+      temp.final$stage.number[i] <- "2"
+    } else if (temp.final$number_of_stages[i] == 3) {
+      temp.final$stage.number[i] <- "3"
+    } else if (temp.final$number_of_stages[i] == 4) {
+      temp.final$stage.number[i] <- "4"
+    }
+  }
+}
+
+# Convert 'stage.number' to a factor
+temp.final$stage.number <- factor(temp.final$stage.number)
+
+
+
+# Create a new column 'avm_type_factor' initialized to NA
+temp.final$avm_type_cox <- NA  
+
+# Loop through each row and assign the appropriate label based on 'avm_type'
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$avm_type[i])) {  # Check if the value is not NA
+    if (temp.final$avm_type[i] == 1) {
+      temp.final$avm_type_cox[i] <- "compact"
+    } else if (temp.final$avm_type[i] == 2) {
+      temp.final$avm_type_cox[i] <- "diffuse"
+    }
+  }
+}
+
+# Convert 'avm_type_factor' to a factor with specified levels
+temp.final$avm_type_cox <- factor(temp.final$avm_type_cox, levels = c("compact", "diffuse"))
+
+
+
+
+
+
+
+
+temp.final$AVM.volume <- temp.final$`Total_AVM_Volume_(cc)`
+temp.final$AVM.volume <- as.numeric(temp.final$AVM.volume)
+
+temp.final$prior.hem <- temp.final$Prior_Hemorrhage
+temp.final$prior.hem <- as.factor(temp.final$prior.hem)
+temp.final$AVM.diameter <- temp.final$max_dm_1st_GK_cm
+temp.final$AVM.diameter <- as.numeric(temp.final$AVM.diameter)
+
+
+
+# Univariable Cox Regression
+Uni_CS <- tbl_uvregression(
+  data = temp.final,
+  method = coxph,
+  y = Surv(time = Event.Time, event = Cox.Status),
+  exponentiate = TRUE,
+  include = c(
+    "Gender", 
+    "Opt_age", 
+    "prior.hem", 
+    "avm_type_cox",
+    "Location",
+    "number_of_stages",
+    "AVM.diameter",
+    "Opt_volume_10", 
+    "Opt_volume_15", 
+    "Opt_volume_20", 
+    "Opt_volume_25",
+    "Opt_margin_15", 
+    "Opt_margin_16", 
+    "Opt_margin_17", 
+    "Opt_margin_18", 
+    "Opt_margin_19", 
+    "Opt_margin_20"
+  ),
+  hide_n = TRUE,
+  pvalue_fun = ~ style_pvalue(.x, digits = 2)
+)
+
+
+# Multivariable Cox Regression
+Multi_CS <- tbl_regression(
+  coxph(
+    Surv(Event.Time, Cox.Status) ~ 
+      Opt_age +  + avm_type_cox +  number_of_stages + Opt_margin_17+ Opt_volume_15,
+    data = temp.final
+  ),
+  exponentiate = TRUE,
+  pvalue_fun = ~ style_pvalue(.x, digits = 2)
+)
+
+# Merge Univariable and Multivariable Tables Horizontally
+Merged_CS_fave <- tbl_merge(
+  tbls = list(Uni_CS, Multi_CS),
+  tab_spanner = c("**Univariable Cox Regression**", "**Multivariable Cox Regression**")
+) %>%
+  modify_caption("**Cause-Specific Cox Regression Results**")
+
+# Display the merged table
+Merged_CS_fave
+
+# Optionally save the merged table as a Word document
+gtsave(as_gt(Merged_CS_fave), "fave_Merged_Cause_Specific.docx")
+
+
+#--------------- Subdistribution hazard model -----------------------
+
+# Univariable Subdistribution Hazard Model
+fave_uni_sub <- tbl_uvregression(
+  data = temp.final,
+  method = tidycmprsk::crr,
+  y = Surv(time = Event.Time, event = Status),
+  exponentiate = TRUE,
+  include = c(
+    "Gender", 
+    "Opt_age", 
+    "prior.hem", 
+    "Location", 
+    "AVM.diameter",
+    "avm_type_cox",
+    "Opt_volume_10", 
+    "Opt_volume_15", 
+    "Opt_volume_20", 
+    "Opt_volume_25",
+    "number_of_stages", 
+    "Opt_margin_15", 
+    "Opt_margin_16", 
+    "Opt_margin_17", 
+    "Opt_margin_18", 
+    "Opt_margin_19", 
+    "Opt_margin_20"
+  ),
+  hide_n = TRUE,
+  pvalue_fun = function(x) style_pvalue(x, digits = 2)
+)
+
+# Print and optionally save the univariable table
+print(fave_uni_sub)
+
+
+# Convert Cox.Status to a factor with appropriate levels
+temp.final$Cox.Status <- factor(temp.final$Cox.Status, levels = c(0, 1))
+
+# Multivariable Subdistribution Hazard Model
+fave_multi_sub <- tbl_regression(
+  x = tidycmprsk::crr(
+    formula = Surv(time = Event.Time, event = Cox.Status) ~ 
+      Opt_age + avm_type_cox + number_of_stages + Opt_margin_17+ Opt_volume_15,
+    data = temp.final
+  ),
+  exponentiate = TRUE,
+  hide_n = TRUE,
+  pvalue_fun = function(x) style_pvalue(x, digits = 2)
+)
+
+
+
+# Merge the Univariable and Multivariable Tables
+Merged_Subdistribution_fave <- tbl_merge(
+  tbls = list(fave_uni_sub, fave_multi_sub),
+  tab_spanner = c("**Univariable Subdistribution Model**", "**Multivariable Subdistribution Model**")
+) %>%
+  modify_caption("**Subdistribution Hazard Model Results**")
+
+# Display the merged table
+Merged_Subdistribution_fave
+
+# Optionally save the merged table as a Word document
+gtsave(as_gt(Merged_Subdistribution_fave), "fave_Merged_Subdistribution.docx")
+
+
+
+######################################################################################################################################
+##################### ---------------------------  CIF analysis for occlusion ---------------------------#############################
+######################################################################################################################################
+#Define the different competing event types (includes occlusion, RIC deficit, hemorrhage, re-treatment, death without event)
+temp.final$Event <- NA
+for (i in 1:nrow(temp.final)) {
+  if (temp.final$obliteration.status[i]==0  & temp.final$salvage.tx[i]==0 & temp.final$Death[i]==0){
+    temp.final$Event[i] <- "Censored"      #Censored without any event happening at any time in FU
+  }else if (temp.final$obliteration.status[i]==1){
+    temp.final$Event[i] <- "Obliteration"     #Occlusion regardless of hemorrhage, deficit 
+  }else if (temp.final$salvage.tx[i]==1){
+    temp.final$Event[i] <- "Retreatment"   #Retreatment
+  }else if (temp.final$Death[i]==1){
+    temp.final$Event[i] <- "Death"         #Eventless non-AVM related death
+  }
+}
+
+#Define event times for the different competing events
+temp.final$Event.Time <- NA
+for (i in 1:nrow(temp.final)) {
+  if (temp.final$Event[i]=="Censored"){
+    temp.final$Event.Time[i] <- with(temp.final, pmax(temp.final$last_MRI_fu[i], temp.final$last_angio_FU[i], na.rm = TRUE))
+  }else if (temp.final$Event[i]=="Obliteration"){
+    temp.final$Event.Time[i] <- temp.final$time.to.obliteration[i]
+  }else if (temp.final$Event[i]=="Retreatment"){
+    temp.final$Event.Time[i] <- temp.final$time.to.salvage[i]
+  }else{
+    temp.final$Event.Time[i] <- temp.final$time.to.death[i]
+  }
+}
+
+#Make this numerical and as.factor
+temp.final$Status <- NA
+for (i in 1:nrow(temp.final)) {
+  if (temp.final$Event[i]=="Censored"){
+    temp.final$Status [i] <- 0
+  }else if (temp.final$Event[i]=="Obliteration"){
+    temp.final$Status [i] <- 1
+  }else if (temp.final$Event[i]=="Retreatment"){
+    temp.final$Status [i] <- 2
+  }else{
+    temp.final$Status [i] <- 3
+  }
+}
+temp.final$Status = as.factor(temp.final$Status)
+
+library(tidycmprsk)
+library(ggsurvfit)
+
+cif <- tidycmprsk::cuminc(Surv(Event.Time, Status) ~ 1, data=temp.final)
+
+
+# Load the ragg package
+library(ragg)
+
+# Save the plot as a TIFF with ZIP compression
+agg_tiff("CIF_Obliteration_Plot.tiff", width = 750, height = 600, res = 75, units = "px", compression = "zip")
+
+# Create and plot the CIF function
+plot <- tidycmprsk::cuminc(Surv(Event.Time, Status) ~ 1, data = temp.final) %>% 
+  ggcuminc(outcome = c("1", "2", "3"),
+           theme = theme_minimal()) +
+  labs(x = "Duration of follow-up after radiosurgery (Months)", y = "Cumulative incidence of outcomes") +
+  add_confidence_interval() +
+  scale_x_continuous(breaks = c(0, 12, 24, 36, 48, 60, 100, 150, 200)) +
+  add_risktable(theme = theme_risktable_default(),
+                risktable_stats = c("n.risk", "cum.event", "cum.censor"),
+                times = c(0, 12, 24, 36, 48, 60, 100, 150, 200),
+                stats_label = list(
+                  cum.event = "Events",
+                  n.risk = "Number at risk",
+                  cum.censor = "Censored")) +
+  theme(legend.position = "None",
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(hjust = 0.5),  # Center title
+        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),      
+        axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0))) +
+  annotate(geom = "text", x = 0, y = 1, label = "A", hjust = 0, vjust = 1, fontface = "bold", size = 12) +  # Add "A" in the upper left
+  annotate(geom = "text", x = 250, y = 0.50, label = "Obliteration") +
+  annotate(geom = "text", x = 250, y = 0.36, label = "Retreatment") +
+  annotate(geom = "text", x = 250, y = 0.04, label = "Death")
+
+# Print the plot
+print(plot)
+
+# Close the graphics device
+dev.off()
+
+
+tbl_cuminc(cif, outcomes = c(1), times = c(12,24,36,48,60,120))
+#Calculate Incidence and CI of different events for 1,2,3,4,5 years
+Table <- tbl_cuminc(cif, outcomes = c(1,2), times = c(12,24,36,48,60,120))
+# Convert the result to a gt table
+gt_table <- as_gt(Table)
+gtsave(gt_table, "Obliteration_after_SRS.docx")
+
+
+# Divide into 2 volumes based on >= 15
+temp.final$Opt_volume_15 <- NA
+
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$`Volume_1st_GK(cc)`[i])) {
+    if (temp.final$`Volume_1st_GK(cc)`[i] >= 15) {
+      temp.final$Opt_volume_15[i] <- "Volume > 15 cc"  # Volume >= 15
+    } else {
+      temp.final$Opt_volume_15[i] <- "Volume < 15 cc"  # Volume < 15
+    }
+  }
+}
+
+# Run the CIF analysis for the two volume subgroups (>= 15 and < 15)
+cif_volume_subgroup <- tidycmprsk::cuminc(Surv(Event.Time, Status) ~ Opt_volume_15, data = temp.final)
+
+# Load the ragg package
+library(ragg)
+
+# Save the plot as a TIFF with ZIP compression
+agg_tiff("CIF_Occlusion_Volume_Group_Plot_Grayscale_SameColor.tiff", width = 750, height = 600, res = 75, units = "px", compression = "zip")
+
+# Create and plot the CIF for tumor volume subgroups with explicit grayscale adjustments
+plot_volume_group <- cif_volume_subgroup %>% 
+  ggcuminc(outcome = c("1"),
+           theme = theme_minimal(base_family = "Arial")) +  # Minimal theme with a standard font
+  labs(x = "Duration of follow-up after radiosurgery (Months)", y = "Cumulative incidence of outcomes") +
+  add_confidence_interval() +
+  scale_x_continuous(breaks = c(0, 12, 24, 36, 48, 60, 100, 150, 200)) +
+  add_risktable(theme = theme_risktable_default(),
+                risktable_stats = c("n.risk", "cum.event", "cum.censor"),
+                times = c(0, 12, 24, 36, 48, 60, 100, 150, 200),
+                stats_label = list(
+                  cum.event = "Events",
+                  n.risk = "Number at risk",
+                  cum.censor = "Censored")) +
+  theme(legend.position = "None",
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(hjust = 0.5),  # Center title
+        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),      
+        axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0)))+
+  annotate(geom = "text", x = 0, y = 1, label = "B", hjust = 0, vjust = 1, fontface = "bold", size = 12) +  # Add "A" in the upper left
+  annotate(geom = "text", x = 250, y = 0.01, label = "P<0.001", hjust = 0, vjust = 0, fontface = "italic", size = 5)  # Add "P<0.001"  
+
+# Print the plot
+print(plot_volume_group)
+
+# Close the graphics device
+dev.off()
+
+# Calculate the incidence and confidence intervals at different time points (12, 24, 36, 48, 60 months)
+library(cmprsk)
+
+# Create a table for the cumulative incidence (for outcome 1)
+Table <- tbl_cuminc(cif_volume_subgroup, outcomes = c(1), times = c(12, 24, 36, 48, 60,120))
+
+# Convert the result to a gt table for better presentation
+library(gt)
+
+# Convert individual outcome table to a gt table
+gt_table <- as_gt(Table)
+
+# Save the table for outcome 1 to a Word document
+gtsave(gt_table, "Obliteration_volume_subgroup_after_SRS.docx")
+
+# Dichotomize MARGIN DOSE based on > 17 Gy
+temp.final$Opt_margin_17 <- NA
+
+for (i in 1:nrow(temp.final)) {
+  if (temp.final$margin_dose_1st_Gy[i] > 17) {
+    temp.final$Opt_margin_17[i] <- "Margin Dose > 17 Gy"  # Margin Dose > 17
+  } else {
+    temp.final$Opt_margin_17[i] <- "Margin Dose <= 17 Gy"  # Margin Dose <= 17
+  }
+}
+
+temp.final$Opt_margin_17 <- as.factor(temp.final$Opt_margin_17)
+
+# Run the CIF analysis for the two margin dose subgroups
+cif_margin_subgroup <- tidycmprsk::cuminc(Surv(Event.Time, Status) ~ Opt_margin_17, data = temp.final)
+
+# Load the ragg package
+library(ragg)
+
+# Save the plot as a TIFF with ZIP compression
+agg_tiff("CIF_occlusion_Margin_Dose_Plot_Grayscale_SameColor.tiff", width = 750, height = 600, res = 75, units = "px", compression = "zip")
+
+# Create and plot the CIF for margin dose subgroups with explicit grayscale adjustments
+plot_margin_group <- cif_margin_subgroup %>% 
+  ggcuminc(outcome = c("1"),
+           theme = theme_minimal(base_family = "Arial")) +  # Minimal theme with a standard font
+  labs(x = "Duration of follow-up after radiosurgery (Months)", y = "Cumulative incidence of outcomes") +
+  add_confidence_interval() +
+  scale_x_continuous(breaks = c(0, 12, 24, 36, 48, 60, 100, 150, 200)) +
+  add_risktable(theme = theme_risktable_default(),
+                risktable_stats = c("n.risk", "cum.event", "cum.censor"),
+                times = c(0, 12, 24, 36, 48, 60, 100, 150, 200),
+                stats_label = list(
+                  cum.event = "Events",
+                  n.risk = "Number at risk",
+                  cum.censor = "Censored")) +
+  theme(legend.position = "None",
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(hjust = 0.5),  # Center title
+        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),      
+        axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0))) +
+  annotate(geom = "text", x = 0, y = 1, label = "C", hjust = 0, vjust = 1, fontface = "bold", size = 12) +  # Add "A" in the upper left
+  annotate(geom = "text", x = 250, y = 0.01, label = "P<0.001", hjust = 0, vjust = 0, fontface = "italic", size = 5)  # Add "P<0.001"
+# Print the plot
+print(plot_margin_group)
+
+# Close the graphics device
+dev.off()
+
+# Calculate the incidence and confidence intervals at different time points (12, 24, 36, 48, 60 months)
+library(cmprsk)
+
+# Create a table for the cumulative incidence (for outcome 1)
+Table_margin <- tbl_cuminc(cif_margin_subgroup, outcomes = c(1), times = c(12, 24, 36, 48, 60,120))
+
+# Convert the result to a gt table for better presentation
+library(gt)
+
+# Convert individual outcome table to a gt table
+gt_table_margin <- as_gt(Table_margin)
+
+# Save the table for outcome 1 to a Word document
+gtsave(gt_table_margin, "Obliteration_margin_dose_subgroup_after_SRS.docx")
+
+# Load necessary library
+library(cmprsk)
+
+# Filter the dataset to include only rows where the event is "Obliteration" (Status = 1)
+temp.final_obliteration <- temp.final[temp.final$Status == 1, ]
+
+# Ensure there are no missing values in relevant columns for analysis
+temp.final_obliteration_clean <- temp.final_obliteration[!is.na(temp.final_obliteration$Event.Time) & 
+                                                           !is.na(temp.final_obliteration$Opt_volume_15) & 
+                                                           !is.na(temp.final_obliteration$Opt_margin_17), ]
+
+# Perform Gray's Test for Volume Subgroups (Volume ≥15 cc vs. <15 cc)
+gray_test_volume <- cmprsk::crr(temp.final_obliteration_clean$Event.Time, 
+                                rep(1, nrow(temp.final_obliteration_clean)),  # All are Status = 1 (Obliteration)
+                                cov1 = as.numeric(temp.final_obliteration_clean$Opt_volume_15 == "Volume > 15 cc"))
+
+# Extract and display the p-value for Volume Subgroups
+p_value_volume <- summary(gray_test_volume)$coef[1, 5]
+cat("P-value for Volume Subgroups (Obliteration Only):", p_value_volume, "\n")
+
+# Perform Gray's Test for Margin Dose Subgroups (Margin Dose >17 Gy vs. ≤17 Gy)
+gray_test_margin <- cmprsk::crr(temp.final_obliteration_clean$Event.Time, 
+                                rep(1, nrow(temp.final_obliteration_clean)),  # All are Status = 1 (Obliteration)
+                                cov1 = as.numeric(temp.final_obliteration_clean$Opt_margin_17 == "Margin Dose > 17 Gy"))
+
+# Extract and display the p-value for Margin Subgroups
+p_value_margin <- summary(gray_test_margin)$coef[1, 5]
+cat("P-value for Margin Subgroups (Obliteration Only):", p_value_margin, "\n")
+
+
+########################################Regression###############################################################################      
+####Manipulate variables and outcome
+#Make new variable for Status so that only Occlusion=1 and all other are Censored=0
+
+# 1. Create Cox.Status based on obli.status
+temp.final$Cox.Status <- NA
+for (i in 1:nrow(temp.final)) {
+  if (temp.final$Status[i]==1){
+    temp.final$Cox.Status[i] <-1
+  }else{
+    temp.final$Cox.Status[i] <- 0
+  }
+}
+
+
+# Divide into 2 age groups - PEDS (<=18) and ADULTS (>18)
+temp.final$Opt_age <- NA  # Initialize Opt_age with NA
+
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$age_at_srs[i])) {  # Check if age_at_srs is not NA
+    if (temp.final$age_at_srs[i] > 18) {
+      temp.final$Opt_age[i] <- 1  # ADULT
+    } else {
+      temp.final$Opt_age[i] <- 0  # PEDS
+    }
+  }
+}
+
+# Optionally, convert Opt_age to a factor for categorical analysis
+temp.final$Opt_age <- as.factor(temp.final$Opt_age)
+
+# Divide into 2 volumes  
+temp.final$Opt_volume_10 <- NA
+
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$`Volume_1st_GK(cc)`[i])) {
+    if (temp.final$`Volume_1st_GK(cc)`[i] >= 10) {
+      temp.final$Opt_volume_10[i] <- 1
+    } else {
+      temp.final$Opt_volume_10[i] <- 0
+    }
+  }
+}
+
+# Convert to factor
+temp.final$Opt_volume_10 <- as.factor(temp.final$Opt_volume_10)
+
+# Divide into 2 volumes  
+temp.final$Opt_volume_15 <- NA
+
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$`Volume_1st_GK(cc)`[i])) {
+    if (temp.final$`Volume_1st_GK(cc)`[i] >= 15) {
+      temp.final$Opt_volume_15[i] <- 1
+    } else {
+      temp.final$Opt_volume_15[i] <- 0
+    }
+  }
+}
+
+# Convert to factor
+temp.final$Opt_volume_15 <- as.factor(temp.final$Opt_volume_15)
+
+# Divide into 2 volumes  
+temp.final$Opt_volume_20 <- NA
+
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$`Volume_1st_GK(cc)`[i])) {
+    if (temp.final$`Volume_1st_GK(cc)`[i] >= 20) {
+      temp.final$Opt_volume_20[i] <- 1
+    } else {
+      temp.final$Opt_volume_20[i] <- 0
+    }
+  }
+}
+
+# Convert to factor
+temp.final$Opt_volume_20 <- as.factor(temp.final$Opt_volume_20)
+
+# Divide into 2 volumes  
+temp.final$Opt_volume_25 <- NA
+
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$`Volume_1st_GK(cc)`[i])) {
+    if (temp.final$`Volume_1st_GK(cc)`[i] >= 25) {
+      temp.final$Opt_volume_25[i] <- 1
+    } else {
+      temp.final$Opt_volume_25[i] <- 0
+    }
+  }
+}
+
+# Convert to factor
+temp.final$Opt_volume_25 <- as.factor(temp.final$Opt_volume_25)
+
+
+# Divide into 2 location groups: Deep (brainstem/BG) and Surobli (lobar/cerebellum)
+temp.final$Location <- NA  # Initialize a new column
+
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$location[i])) {  # Check for non-NA values
+    if (str_detect(temp.final$location[i], "2") |
+        str_detect(temp.final$location[i], "3")) {
+      temp.final$Location[i] <- 1  # Deep location
+    } else {
+      temp.final$Location[i] <- 0  # Surobli location
+    }
+  }
+}
+
+# Convert the Location column to a factor
+temp.final$Location <- as.factor(temp.final$Location)
+
+#Dichotomize MARGIN DOSE 
+temp.final$Opt_margin_15 <- NA
+for (i in 1:nrow(temp.final)){
+  if (temp.final$margin_dose_1st_Gy [i] > 15){
+    temp.final$Opt_margin_15[i] <- 1
+  }else{
+    temp.final$Opt_margin_15[i] <- 0
+  }
+}
+temp.final$Opt_margin_15 = as.factor(temp.final$Opt_margin_15)
+
+
+#Dichotomize MARGIN DOSE 
+temp.final$Opt_margin_16 <- NA
+for (i in 1:nrow(temp.final)){
+  if (temp.final$margin_dose_1st_Gy [i] > 16){
+    temp.final$Opt_margin_16[i] <- 1
+  }else{
+    temp.final$Opt_margin_16[i] <- 0
+  }
+}
+temp.final$Opt_margin_16 = as.factor(temp.final$Opt_margin_16)
+
+#Dichotomize MARGIN DOSE 
+temp.final$Opt_margin_17 <- NA
+for (i in 1:nrow(temp.final)){
+  if (temp.final$margin_dose_1st_Gy [i] > 17){
+    temp.final$Opt_margin_17[i] <- 1
+  }else{
+    temp.final$Opt_margin_17[i] <- 0
+  }
+}
+temp.final$Opt_margin_17 = as.factor(temp.final$Opt_margin_17)
+
+#Dichotomize MARGIN DOSE 
+temp.final$Opt_margin_18 <- NA
+for (i in 1:nrow(temp.final)){
+  if (temp.final$margin_dose_1st_Gy [i] > 18){
+    temp.final$Opt_margin_18[i] <- 1
+  }else{
+    temp.final$Opt_margin_18[i] <- 0
+  }
+}
+temp.final$Opt_margin_18 = as.factor(temp.final$Opt_margin_18)  
+
+
+#Dichotomize MARGIN DOSE 
+temp.final$Opt_margin_19 <- NA
+for (i in 1:nrow(temp.final)){
+  if (temp.final$margin_dose_1st_Gy [i] > 19){
+    temp.final$Opt_margin_19[i] <- 1
+  }else{
+    temp.final$Opt_margin_19[i] <- 0
+  }
+}
+temp.final$Opt_margin_19 = as.factor(temp.final$Opt_margin_19)  
+
+
+#Dichotomize MARGIN DOSE 
+temp.final$Opt_margin_20 <- NA
+for (i in 1:nrow(temp.final)){
+  if (temp.final$margin_dose_1st_Gy [i] > 20){
+    temp.final$Opt_margin_20[i] <- 1
+  }else{
+    temp.final$Opt_margin_20[i] <- 0
+  }
+}
+temp.final$Opt_margin_20 = as.factor(temp.final$Opt_margin_20)  
+
+# Assuming 'gender' column contains "M" and "F" values
+temp.final$Gender <- NA  # Create new column
+
+# Loop to assign 1 for 'M' and 0 for 'F'
+for (i in 1:nrow(temp.final)) {
+  if (temp.final$gender[i] == "M") {
+    temp.final$Gender[i] <- 1
+  } else {
+    temp.final$Gender[i] <- 0
+  }
+}
+
+temp.final$Gender <- as.factor(temp.final$Gender)
+
+# Load required library
+library(survival)
+
+# Create a new column 'stage.number' initialized to NA
+temp.final$stage.number <- NA
+
+# Assign the factor level based on 'number_of_stages'
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$number_of_stages[i])) {  # Check if the value is not NA
+    if (temp.final$number_of_stages[i] == 2) {
+      temp.final$stage.number[i] <- "2"
+    } else if (temp.final$number_of_stages[i] == 3) {
+      temp.final$stage.number[i] <- "3"
+    } else if (temp.final$number_of_stages[i] == 4) {
+      temp.final$stage.number[i] <- "4"
+    }
+  }
+}
+
+# Convert 'stage.number' to a factor
+temp.final$stage.number <- factor(temp.final$stage.number)
+
+
+
+# Create a new column 'avm_type_factor' initialized to NA
+temp.final$avm_type_cox <- NA  
+
+# Loop through each row and assign the appropriate label based on 'avm_type'
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$avm_type[i])) {  # Check if the value is not NA
+    if (temp.final$avm_type[i] == 1) {
+      temp.final$avm_type_cox[i] <- "compact"
+    } else if (temp.final$avm_type[i] == 2) {
+      temp.final$avm_type_cox[i] <- "diffuse"
+    }
+  }
+}
+
+# Convert 'avm_type_factor' to a factor with specified levels
+temp.final$avm_type_cox <- factor(temp.final$avm_type_cox, levels = c("compact", "diffuse"))
+
+
+temp.final$AVM.volume <- temp.final$`Total_AVM_Volume_(cc)`
+temp.final$AVM.volume <- as.numeric(temp.final$AVM.volume)
+
+temp.final$prior.hem <- temp.final$Prior_Hemorrhage
+temp.final$prior.hem <- as.factor(temp.final$prior.hem)
+temp.final$AVM.diameter <- temp.final$max_dm_1st_GK_cm
+temp.final$AVM.diameter <- as.numeric(temp.final$AVM.diameter)
+
+
+
+# Univariable Cox Regression
+Uni_CS <- tbl_uvregression(
+  data = temp.final,
+  method = coxph,
+  y = Surv(time = Event.Time, event = Cox.Status),
+  exponentiate = TRUE,
+  include = c(
+    "Gender", 
+    "Opt_age", 
+    "prior.hem", 
+    "avm_type_cox",
+    "Location", 
+    "AVM.diameter",
+    "number_of_stages", 
+    "Opt_volume_10", 
+    "Opt_volume_15", 
+    "Opt_volume_20", 
+    "Opt_volume_25",
+    "Opt_margin_15", 
+    "Opt_margin_16", 
+    "Opt_margin_17", 
+    "Opt_margin_18", 
+    "Opt_margin_19", 
+    "Opt_margin_20"
+  ),
+  hide_n = TRUE,
+  pvalue_fun = ~ style_pvalue(.x, digits = 2)
+)
+
+
+# Multivariable Cox Regression
+Multi_CS <- tbl_regression(
+  coxph(
+    Surv(Event.Time, Cox.Status) ~ 
+      Opt_age +  avm_type_cox + number_of_stages + Opt_margin_17+ Opt_volume_15,
+    data = temp.final
+  ),
+  exponentiate = TRUE,
+  pvalue_fun = ~ style_pvalue(.x, digits = 2)
+)
+
+# Merge Univariable and Multivariable Tables Horizontally
+Merged_CS_obli <- tbl_merge(
+  tbls = list(Uni_CS, Multi_CS),
+  tab_spanner = c("**Univariable Cox Regression**", "**Multivariable Cox Regression**")
+) %>%
+  modify_caption("**Cause-Specific Cox Regression Results**")
+
+# Display the merged table
+Merged_CS_obli
+
+# Optionally save the merged table as a Word document
+gtsave(as_gt(Merged_CS_obli), "obli_Merged_Cause_Specific.docx")
+
+
+
+#--------------- Subdistribution hazard model -----------------------
+
+# Univariable Subdistribution Hazard Model
+obli_uni_sub <- tbl_uvregression(
+  data = temp.final,
+  method = tidycmprsk::crr,
+  y = Surv(time = Event.Time, event = Status),
+  exponentiate = TRUE,
+  include = c(
+    "Gender", 
+    "Opt_age", 
+    "prior.hem", 
+    "Location", 
+    "AVM.diameter",
+    "number_of_stages", 
+    "avm_type_cox",
+    "Opt_volume_10", 
+    "Opt_volume_15", 
+    "Opt_volume_20", 
+    "Opt_volume_25",
+    "Opt_margin_15", 
+    "Opt_margin_16", 
+    "Opt_margin_17", 
+    "Opt_margin_18", 
+    "Opt_margin_19", 
+    "Opt_margin_20"
+  ),
+  hide_n = TRUE,
+  pvalue_fun = function(x) style_pvalue(x, digits = 2)
+)
+
+# Print and optionally save the univariable table
+print(obli_uni_sub)
+
+
+# Convert Cox.Status to a factor with appropriate levels
+temp.final$Cox.Status <- factor(temp.final$Cox.Status, levels = c(0, 1))
+
+# Multivariable Subdistribution Hazard Model
+obli_multi_sub <- tbl_regression(
+  x = tidycmprsk::crr(
+    formula = Surv(time = Event.Time, event = Cox.Status) ~ 
+      Opt_age +   avm_type_cox +  number_of_stages + Opt_margin_17+ Opt_volume_15,
+    data = temp.final
+  ),
+  exponentiate = TRUE,
+  hide_n = TRUE,
+  pvalue_fun = function(x) style_pvalue(x, digits = 2)
+)
+
+# Print and optionally save the multivariable table
+print(obli_multi_sub)
+
+
+# Merge the Univariable and Multivariable Tables Horizontally
+Merged_Subdistribution_obli <- tbl_merge(
+  tbls = list(obli_uni_sub, obli_multi_sub),
+  tab_spanner = c("**Univariable Subdistribution Model**", "**Multivariable Subdistribution Model**")
+) %>%
+  modify_caption("**Subdistribution Hazard Model Results**")
+
+# Display the merged table
+Merged_Subdistribution_obli
+
+# Optionally save the merged table as a Word document
+gtsave(as_gt(Merged_Subdistribution_obli), "obli_Merged_Subdistribution.docx")
+
+
+
+
+#####################################################################################################
+#####################################################################################################
+#####################################################################################################
+###################################### Hemorrhage ###################################################
+#####################################################################################################
+#####################################################################################################
+#####################################################################################################
+
+#Define the different competing event types (includes occlusion, RIC deficit, hemorrhage, re-treatment, death without event)
+temp.final$Event <- NA
+for (i in 1:nrow(temp.final)) {
+  if (temp.final$obliteration.status[i]==0 & temp.final$post.srs.hemorrhage[i]==0 & temp.final$salvage.tx[i]==0 & temp.final$Death[i]==0){
+    temp.final$Event[i] <- "Censored"      #Censored without any competing event happening at any time in FU
+  }else if (temp.final$post.srs.hemorrhage[i]==1){
+    temp.final$Event[i] <- "Hemorrhage"     #Hemorrhage
+  }else if (temp.final$salvage.tx[i]==1 & temp.final$post.srs.hemorrhage[i]==0){
+    temp.final$Event[i] <- "Retreatment"   #Retreatment without prior hemorrhage
+  }else if (temp.final$Death[i]==1){
+    temp.final$Event[i] <- "Death"         #Eventless non-AVM related death
+  }else if (temp.final$obliteration.status[i]==1){
+    temp.final$Event[i] <- "Occlusion"      #Occlusion
+  }
+}
+
+#Define event times for the different competing events
+temp.final$Event.Time <- NA
+for (i in 1:nrow(temp.final)) {
+  if (temp.final$Event[i]=="Censored"){
+    temp.final$Event.Time[i] <- with(temp.final, pmax(temp.final$last_MRI_fu, temp.final$last_angio_FU[i], na.rm = TRUE))
+  }else if (temp.final$Event[i]=="Hemorrhage"){
+    temp.final$Event.Time[i] <- temp.final$time.to.hemorrhage[i]
+  }else if (temp.final$Event[i]=="Retreatment"){
+    temp.final$Event.Time[i] <- temp.final$time.to.salvage[i]
+  }else if (temp.final$Event[i]=="Occlusion"){
+    temp.final$Event.Time[i] <- temp.final$time.to.obliteration[i]
+  }else{
+    temp.final$Event.Time[i] <- temp.final$time.to.death[i]
+  }
+}
+
+#Make this numerical and as.factor
+temp.final$Status <- NA
+for (i in 1:nrow(temp.final)) {
+  if (temp.final$Event[i]=="Censored"){
+    temp.final$Status [i] <- 0
+  }else if (temp.final$Event[i]=="Hemorrhage"){
+    temp.final$Status [i] <- 1
+  }else if (temp.final$Event[i]=="Retreatment"){
+    temp.final$Status [i] <- 2
+  }else if (temp.final$Event[i]=="Occlusion"){
+    temp.final$Status [i] <- 3
+  }else{
+    temp.final$Status [i] <- 4
+  }
+}
+temp.final$Status = as.factor(temp.final$Status)
+
+# Check for missing values in time_to_event and obliteration.status
+sum(is.na(temp.final$Event)) # Should be 0
+sum(is.na(temp.final$Event.Time)) # Should be 0
+
+#Cumulative incidence function for Hemorrhage
+cif <- tidycmprsk::cuminc(Surv(Event.Time, Status) ~ 1, data=temp.final)
+
+# Load the ragg package
+library(ragg)
+
+# Save the plot as a TIFF with ZIP compression
+agg_tiff("CIF_Hemorrhage_Plot.tiff", width = 750, height = 600, res = 75, units = "px", compression = "zip")
+
+# Create and plot the CIF function
+plot <- tidycmprsk::cuminc(Surv(Event.Time, Status) ~ 1, data = temp.final) %>% 
+  ggcuminc(outcome = c("1"),
+           theme = theme_minimal()) +
+  labs(x = "Duration of follow-up after radiosurgery (Months)", y = "Cumulative incidence of outcomes") +
+  add_confidence_interval() +
+  scale_x_continuous(breaks = c(0, 12, 24, 36, 48, 60, 100, 150, 200)) +
+  add_risktable(theme = theme_risktable_default(),
+                risktable_stats = c("n.risk", "cum.event", "cum.censor"),
+                times = c(0, 12, 24, 36, 48, 60, 100, 150, 200),
+                stats_label = list(
+                  cum.event = "Events",
+                  n.risk = "Number at risk",
+                  cum.censor = "Censored")) +
+  theme(legend.position = "None",
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(hjust = 0.5),  # Center title
+        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),      
+        axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0))) +
+  annotate(geom = "text", x = 200, y = 0.10, label = "Hemorrhage")
+
+# Print the plot
+print(plot)
+
+# Close the graphics device
+dev.off()
+
+
+ggsave("Cumulative_Incidence_Hemorrhage.png", plot, width = 8, height = 6, dpi = 300)
+
+#Calculate Incidence and CI of different events for 1,2,3,4,5 years
+tbl_cuminc(cif, outcomes = c(1), times = c(12,24,36,48,60,120))
+
+Table <- tbl_cuminc(cif, outcomes = c(1), times = c(12,24,36,48,60,120))
+# Convert the result to a gt table
+gt_table <- as_gt(Table)
+gtsave(gt_table, "Hemorrhage.docx")
+
+
+
+
+temp.final$post.srs.hemorrhage <- as.numeric(temp.final$post.srs.hemorrhage)
+
+temp.final$HEm.free.years <- NA
+##Calculate annual hemorrhage incidence rate
+for (i in 1:nrow(temp.final)) {
+  if (temp.final$post.srs.hemorrhage[i]==1){
+    temp.final$HEm.free.years[i] <- temp.final$time.to.hemorrhage[i]
+  }else if(temp.final$Occlusion [i]==1){
+    temp.final$HEm.free.years[i] <- temp.final$time.to.obliteration[i]
+  }else{
+    temp.final$HEm.free.years[i] <- temp.final$Last.FU.time[i]
+  }
+}
+paste0(round(sum(temp.final$post.srs.hemorrhage)/(sum(temp.final$HEm.free.years)/12)*100, digits = 2), " per 100 patient-years")
+
+{
+  # Count the number of 1s in the 'post.srs.hemorrhage' column
+  count_ones <- sum(temp.final$post.srs.hemorrhage == 1, na.rm = TRUE)
+  # Print the result
+  print(paste("Number of 1s in post.srs.hemorrhage:", count_ones))
+}
+
+{
+  # Filter rows where prior_hem is 0 and post.srs.hemorrhage is 1
+  filtered_temp.final <- temp.final[temp.final$Prior_Hemorrhage == 0 & temp.final$post.srs.hemorrhage == 1, ]
+  
+  # Count the number of such cases
+  count_ones <- nrow(filtered_temp.final)
+  
+  # Print the result
+  print(paste("Number of 1s in post.srs.hemorrhage with 0 in prior_hem:", count_ones))
+}
+
+{
+  # Count the number of 1s in the 'post.srs.hemorrhage' column
+  count_ones <- sum(temp.final$`Cause of death` == 1, na.rm = TRUE)
+  # Print the result
+  print(paste("Number of Death due to hemorrhage:", count_ones))
+}
+
+
+# Load the data into R (assuming you have read your Excel file into a data frame named 'data')
+# If you haven't loaded it yet, uncomment the following line:
+# data <- read.xlsx("path_to_your_excel_file.xlsx", sheet = 1)
+
+# Filter the rows based on your conditions
+filtered_temp.final_hem<- temp.final[temp.final$post.srs.hemorrhage == 1 & 
+                                       temp.final$obliteration.status == 1 & 
+                                       temp.final$time.to.hemorrhage > temp.final$time.to.obliteration, ]
+# Add the new column 'imaging.obliteration'
+filtered_temp.final_hem$imaging.obliteration <- paste(
+  "Hemorrhage at:", filtered_temp.final_hem$time.to.hemorrhage, 
+  " | Obliteration at:", filtered_temp.final_hem$time.to.obliteration
+)
+# Display the filtered data with the new column
+print(filtered_temp.final_hem)
+# Count the number of such cases
+count <- nrow(filtered_temp.final_hem)
+
+# Display the result
+print(paste("Number of hemorrhage after confirmation of obliteration:", count))
+
+
+
+
+
+# Ensure 'Prior_Hemorrhage' is numeric
+temp.final$Prior_Hemorrhage <- as.numeric(temp.final$Prior_Hemorrhage)
+
+# Initialize 'HEm.free.years.prior' properly
+temp.final$HEm.free.years.prior <- numeric(nrow(temp.final))
+
+# Calculate annual hemorrhage incidence rate
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$Prior_Hemorrhage[i])) {
+    if (temp.final$Prior_Hemorrhage[i] == 1) {
+      temp.final$HEm.free.years.prior[i] <- temp.final$period_dx_to_hem[i]
+    } else {
+      temp.final$HEm.free.years.prior[i] <- temp.final$dx_to_SRS[i]
+    }
+  }
+}
+
+# Remove any NA values from 'HEm.free.years.prior'
+temp.final <- temp.final[!is.na(temp.final$HEm.free.years.prior), ]
+
+# Calculate and display the annual hemorrhage incidence rate
+annual_rate <- round(sum(temp.final$Prior_Hemorrhage) / 
+                       (sum(temp.final$HEm.free.years.prior) / 12) * 100, digits = 2)
+
+# Output the result
+paste0(annual_rate, " per 100 patient-years")
+#####################################################################################################
+#####################################################################################################
+#####################################################################################################
+###################################### RIC ###################################################
+#####################################################################################################
+#####################################################################################################
+#####################################################################################################
+
+#Define the different competing event types (includes occlusion, RIC deficit, hemorrhage, re-treatment, death without event)
+temp.final$Event <- NA
+for (i in 1:nrow(temp.final)) {
+  if (temp.final$RIC.deficit[i]==0 & temp.final$salvage.tx[i]==0 & temp.final$Death[i]==0){
+    temp.final$Event[i] <- "Censored"      #Censored without any event happening at any time in FU
+  }else if (temp.final$RIC.deficit[i]==1){
+    temp.final$Event[i] <- "RIC"     #Symptomatic RIC
+  }else if (temp.final$salvage.tx[i]==1){
+    temp.final$Event[i] <- "Retreatment"   #Retreatment
+  }else if (temp.final$Death[i]==1){
+    temp.final$Event[i] <- "Death"         #Eventless non-AVM related death
+  }
+}
+
+#Define event times for the different competing events
+temp.final$Event.Time <- NA
+for (i in 1:nrow(temp.final)) {
+  if (temp.final$Event[i]=="Censored"){
+    temp.final$Event.Time[i] <- with(temp.final, pmax(temp.final$last_MRI_fu[i], na.rm = TRUE))
+  }else if (temp.final$Event[i]=="RIC"){
+    temp.final$Event.Time[i] <- temp.final$time.to.RIC[i]
+  }else if (temp.final$Event[i]=="Retreatment"){
+    temp.final$Event.Time[i] <- temp.final$time.to.salvage[i]
+  }else{
+    temp.final$Event.Time[i] <- temp.final$time.to.death[i]
+  }
+}
+
+#Make this numerical and as.factor
+temp.final$Status <- NA
+for (i in 1:nrow(temp.final)) {
+  if (temp.final$Event[i]=="Censored"){
+    temp.final$Status [i] <- 0
+  }else if (temp.final$Event[i]=="RIC"){
+    temp.final$Status [i] <- 1
+  }else if (temp.final$Event[i]=="Retreatment"){
+    temp.final$Status [i] <- 2
+  }else{
+    temp.final$Status [i] <- 3
+  }
+}
+temp.final$Status = as.factor(temp.final$Status)
+
+#Cumulative incidence function for RIC outcome
+cif <- tidycmprsk::cuminc(Surv(Event.Time, Status) ~ 1, data=temp.final)
+
+# Load the ragg package
+library(ragg)
+
+# Save the plot as a TIFF with ZIP compression
+agg_tiff("CIF_RIC_Plot.tiff", width = 750, height = 600, res = 75, units = "px", compression = "zip")
+
+# Create and plot the CIF function
+plot <- tidycmprsk::cuminc(Surv(Event.Time, Status) ~ 1, data = temp.final) %>% 
+  ggcuminc(outcome = c("1"),
+           theme = theme_minimal()) +
+  labs(x = "Duration of follow-up after radiosurgery (Months)", y = "Cumulative incidence of outcomes") +
+  add_confidence_interval() +
+  scale_x_continuous(breaks = c(0, 12, 24, 36, 48, 60, 100, 150, 200)) +
+  add_risktable(theme = theme_risktable_default(),
+                risktable_stats = c("n.risk", "cum.event", "cum.censor"),
+                times = c(0, 12, 24, 36, 48, 60, 100, 150, 200),
+                stats_label = list(
+                  cum.event = "Events",
+                  n.risk = "Number at risk",
+                  cum.censor = "Censored")) +
+  theme(legend.position = "None",
+        panel.grid.minor = element_blank(),
+        plot.title = element_text(hjust = 0.5),  # Center title
+        axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),      
+        axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0))) +
+  annotate(geom = "text", x = 200, y = 0.2, label = "RIC")
+
+# Print the plot
+print(plot)
+
+# Close the graphics device
+dev.off()
+
+
+ggsave("Cumulative_Incidence_RIC.png", plot, width = 8, height = 6, dpi = 300)
+#Calculate Incidence and CI of different events for 1,2,3,4,5 years
+tbl_cuminc(cif, outcomes = c(1), times = c(12,24,36,48,60,120))
+
+Table <- tbl_cuminc(cif, outcomes = c(1), times = c(12,24,36,48,60,120))
+# Convert the result to a gt table
+gt_table <- as_gt(Table)
+gtsave(gt_table, "RIC.docx")
+
+########################################Regression###############################################################################      
+####Manipulate variables and outcome
+#Make new variable for Status so that only Occlusion=1 and all other are Censored=0
+
+# 1. Create Cox.Status based on RIC.status
+temp.final$Cox.Status <- NA
+for (i in 1:nrow(temp.final)) {
+  if (temp.final$Status[i]==1){
+    temp.final$Cox.Status[i] <-1
+  }else{
+    temp.final$Cox.Status[i] <- 0
+  }
+}
+
+
+# Divide into 2 age groups - PEDS (<=18) and ADULTS (>18)
+temp.final$Opt_age <- NA  # Initialize Opt_age with NA
+
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$age_at_srs[i])) {  # Check if age_at_srs is not NA
+    if (temp.final$age_at_srs[i] > 18) {
+      temp.final$Opt_age[i] <- 1  # ADULT
+    } else {
+      temp.final$Opt_age[i] <- 0  # PEDS
+    }
+  }
+}
+
+# Optionally, convert Opt_age to a factor for categorical analysis
+temp.final$Opt_age <- as.factor(temp.final$Opt_age)
+
+# Divide into 2 volumes  
+temp.final$Opt_volume_10 <- NA
+
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$`Volume_1st_GK(cc)`[i])) {
+    if (temp.final$`Volume_1st_GK(cc)`[i] >= 10) {
+      temp.final$Opt_volume_10[i] <- 1
+    } else {
+      temp.final$Opt_volume_10[i] <- 0
+    }
+  }
+}
+
+# Convert to factor
+temp.final$Opt_volume_10 <- as.factor(temp.final$Opt_volume_10)
+
+# Divide into 2 volumes  
+temp.final$Opt_volume_15 <- NA
+
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$`Volume_1st_GK(cc)`[i])) {
+    if (temp.final$`Volume_1st_GK(cc)`[i] >= 15) {
+      temp.final$Opt_volume_15[i] <- 1
+    } else {
+      temp.final$Opt_volume_15[i] <- 0
+    }
+  }
+}
+
+# Convert to factor
+temp.final$Opt_volume_15 <- as.factor(temp.final$Opt_volume_15)
+
+# Divide into 2 volumes  
+temp.final$Opt_volume_20 <- NA
+
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$`Volume_1st_GK(cc)`[i])) {
+    if (temp.final$`Volume_1st_GK(cc)`[i] >= 20) {
+      temp.final$Opt_volume_20[i] <- 1
+    } else {
+      temp.final$Opt_volume_20[i] <- 0
+    }
+  }
+}
+
+# Convert to factor
+temp.final$Opt_volume_20 <- as.factor(temp.final$Opt_volume_20)
+
+# Divide into 2 volumes  
+temp.final$Opt_volume_25 <- NA
+
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$`Volume_1st_GK(cc)`[i])) {
+    if (temp.final$`Volume_1st_GK(cc)`[i] >= 25) {
+      temp.final$Opt_volume_25[i] <- 1
+    } else {
+      temp.final$Opt_volume_25[i] <- 0
+    }
+  }
+}
+
+# Convert to factor
+temp.final$Opt_volume_25 <- as.factor(temp.final$Opt_volume_25)
+
+
+# Divide into 2 location groups: Deep (brainstem/BG) and SurRIC (lobar/cerebellum)
+temp.final$Location <- NA  # Initialize a new column
+
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$location[i])) {  # Check for non-NA values
+    if (str_detect(temp.final$location[i], "2") |
+        str_detect(temp.final$location[i], "3")) {
+      temp.final$Location[i] <- 1  # Deep location
+    } else {
+      temp.final$Location[i] <- 0  # SurRIC location
+    }
+  }
+}
+
+# Convert the Location column to a factor
+temp.final$Location <- as.factor(temp.final$Location)
+
+#Dichotomize MARGIN DOSE 
+temp.final$Opt_margin_15 <- NA
+for (i in 1:nrow(temp.final)){
+  if (temp.final$margin_dose_1st_Gy [i] > 15){
+    temp.final$Opt_margin_15[i] <- 1
+  }else{
+    temp.final$Opt_margin_15[i] <- 0
+  }
+}
+temp.final$Opt_margin_15 = as.factor(temp.final$Opt_margin_15)
+
+
+#Dichotomize MARGIN DOSE 
+temp.final$Opt_margin_16 <- NA
+for (i in 1:nrow(temp.final)){
+  if (temp.final$margin_dose_1st_Gy [i] > 16){
+    temp.final$Opt_margin_16[i] <- 1
+  }else{
+    temp.final$Opt_margin_16[i] <- 0
+  }
+}
+temp.final$Opt_margin_16 = as.factor(temp.final$Opt_margin_16)
+
+#Dichotomize MARGIN DOSE 
+temp.final$Opt_margin_17 <- NA
+for (i in 1:nrow(temp.final)){
+  if (temp.final$margin_dose_1st_Gy [i] > 17){
+    temp.final$Opt_margin_17[i] <- 1
+  }else{
+    temp.final$Opt_margin_17[i] <- 0
+  }
+}
+temp.final$Opt_margin_17 = as.factor(temp.final$Opt_margin_17)
+
+#Dichotomize MARGIN DOSE 
+temp.final$Opt_margin_18 <- NA
+for (i in 1:nrow(temp.final)){
+  if (temp.final$margin_dose_1st_Gy [i] > 18){
+    temp.final$Opt_margin_18[i] <- 1
+  }else{
+    temp.final$Opt_margin_18[i] <- 0
+  }
+}
+temp.final$Opt_margin_18 = as.factor(temp.final$Opt_margin_18)  
+
+
+#Dichotomize MARGIN DOSE 
+temp.final$Opt_margin_19 <- NA
+for (i in 1:nrow(temp.final)){
+  if (temp.final$margin_dose_1st_Gy [i] > 19){
+    temp.final$Opt_margin_19[i] <- 1
+  }else{
+    temp.final$Opt_margin_19[i] <- 0
+  }
+}
+temp.final$Opt_margin_19 = as.factor(temp.final$Opt_margin_19)  
+
+
+#Dichotomize MARGIN DOSE 
+temp.final$Opt_margin_20 <- NA
+for (i in 1:nrow(temp.final)){
+  if (temp.final$margin_dose_1st_Gy [i] > 20){
+    temp.final$Opt_margin_20[i] <- 1
+  }else{
+    temp.final$Opt_margin_20[i] <- 0
+  }
+}
+temp.final$Opt_margin_20 = as.factor(temp.final$Opt_margin_20)  
+
+# Assuming 'gender' column contains "M" and "F" values
+temp.final$Gender <- NA  # Create new column
+
+# Loop to assign 1 for 'M' and 0 for 'F'
+for (i in 1:nrow(temp.final)) {
+  if (temp.final$gender[i] == "M") {
+    temp.final$Gender[i] <- 1
+  } else {
+    temp.final$Gender[i] <- 0
+  }
+}
+
+temp.final$Gender <- as.factor(temp.final$Gender)
+
+# Load required library
+library(survival)
+
+# Create a new column 'stage.number' initialized to NA
+temp.final$stage.number <- NA
+
+# Assign the factor level based on 'number_of_stages'
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$number_of_stages[i])) {  # Check if the value is not NA
+    if (temp.final$number_of_stages[i] == 2) {
+      temp.final$stage.number[i] <- "2"
+    } else if (temp.final$number_of_stages[i] == 3) {
+      temp.final$stage.number[i] <- "3"
+    } else if (temp.final$number_of_stages[i] == 4) {
+      temp.final$stage.number[i] <- "4"
+    }
+  }
+}
+
+# Convert 'stage.number' to a factor
+temp.final$stage.number <- factor(temp.final$stage.number)
+
+
+
+# Create a new column 'avm_type_factor' initialized to NA
+temp.final$avm_type_cox <- NA  
+
+# Loop through each row and assign the appropriate label based on 'avm_type'
+for (i in 1:nrow(temp.final)) {
+  if (!is.na(temp.final$avm_type[i])) {  # Check if the value is not NA
+    if (temp.final$avm_type[i] == 1) {
+      temp.final$avm_type_cox[i] <- "compact"
+    } else if (temp.final$avm_type[i] == 2) {
+      temp.final$avm_type_cox[i] <- "diffuse"
+    }
+  }
+}
+
+# Convert 'avm_type_factor' to a factor with specified levels
+temp.final$avm_type_cox <- factor(temp.final$avm_type_cox, levels = c("compact", "diffuse"))
+
+
+temp.final$AVM.volume <- temp.final$`Total_AVM_Volume_(cc)`
+temp.final$AVM.volume <- as.numeric(temp.final$AVM.volume)
+
+temp.final$prior.hem <- temp.final$Prior_Hemorrhage
+temp.final$prior.hem <- as.factor(temp.final$prior.hem)
+temp.final$AVM.diameter <- temp.final$max_dm_1st_GK_cm
+temp.final$AVM.diameter <- as.numeric(temp.final$AVM.diameter)
+
+
+
+# Univariable Cox Regression
+Uni_CS <- tbl_uvregression(
+  data = temp.final,
+  method = coxph,
+  y = Surv(time = Event.Time, event = Cox.Status),
+  exponentiate = TRUE,
+  include = c(
+    "Gender", 
+    "Opt_age", 
+    "prior.hem", 
+    "avm_type_cox",
+    "Location", 
+    "AVM.diameter",
+    "number_of_stages", 
+    "Opt_volume_10", 
+    "Opt_volume_15", 
+    "Opt_volume_20", 
+    "Opt_volume_25",
+    "Opt_margin_15", 
+    "Opt_margin_16", 
+    "Opt_margin_17", 
+    "Opt_margin_18", 
+    "Opt_margin_19", 
+    "Opt_margin_20"
+  ),
+  hide_n = TRUE,
+  pvalue_fun = ~ style_pvalue(.x, digits = 2)
+)
+
+
+# Multivariable Cox Regression
+Multi_CS <- tbl_regression(
+  coxph(
+    Surv(Event.Time, Cox.Status) ~ 
+      Opt_age +  + avm_type_cox + number_of_stages + Opt_margin_17+ Opt_volume_15,
+    data = temp.final
+  ),
+  exponentiate = TRUE,
+  pvalue_fun = ~ style_pvalue(.x, digits = 2)
+)
+
+# Merge Univariable and Multivariable Tables Horizontally
+Merged_CS_RIC <- tbl_merge(
+  tbls = list(Uni_CS, Multi_CS),
+  tab_spanner = c("**Univariable Cox Regression**", "**Multivariable Cox Regression**")
+) %>%
+  modify_caption("**Cause-Specific Cox Regression Results**")
+
+# Display the merged table
+Merged_CS_RIC
+
+# Optionally save the merged table as a Word document
+gtsave(as_gt(Merged_CS_RIC), "RIC_Merged_Cause_Specific.docx")
+
+
+
+#--------------- Subdistribution hazard model -----------------------
+
+# Univariable Subdistribution Hazard Model
+RIC_uni_sub <- tbl_uvregression(
+  data = temp.final,
+  method = tidycmprsk::crr,
+  y = Surv(time = Event.Time, event = Status),
+  exponentiate = TRUE,
+  include = c(
+    "Gender", 
+    "Opt_age", 
+    "prior.hem", 
+    "Location", 
+    "AVM.diameter",
+    "number_of_stages", 
+    "avm_type_cox",
+    "Opt_volume_10", 
+    "Opt_volume_15", 
+    "Opt_volume_20", 
+    "Opt_volume_25",
+    "Opt_margin_15", 
+    "Opt_margin_16", 
+    "Opt_margin_17", 
+    "Opt_margin_18", 
+    "Opt_margin_19", 
+    "Opt_margin_20"
+    
+  ),
+  hide_n = TRUE,
+  pvalue_fun = function(x) style_pvalue(x, digits = 2)
+)
+
+# Print and optionally save the univariable table
+print(RIC_uni_sub)
+
+
+# Convert Cox.Status to a factor with appropriate levels
+temp.final$Cox.Status <- factor(temp.final$Cox.Status, levels = c(0, 1))
+
+# Multivariable Subdistribution Hazard Model
+RIC_multi_sub <- tbl_regression(
+  x = tidycmprsk::crr(
+    formula = Surv(time = Event.Time, event = Cox.Status) ~ 
+      Opt_age +  + avm_type_cox + number_of_stages + Opt_margin_17+ Opt_volume_15,
+    data = temp.final
+  ),
+  exponentiate = TRUE,
+  hide_n = TRUE,
+  pvalue_fun = function(x) style_pvalue(x, digits = 2)
+)
+
+# Print and optionally save the multivariable table
+print(RIC_multi_sub)
+
+
+# Merge Univariable and Multivariable Tables Horizontally
+Merged_Subdistribution_RIC <- tbl_merge(
+  tbls = list(RIC_uni_sub, RIC_multi_sub),
+  tab_spanner = c("**Univariable Subdistribution Model**", "**Multivariable Subdistribution Model**")
+) %>%
+  modify_caption("**Subdistribution Hazard Model Results**")
+
+# Display the merged table
+Merged_Subdistribution_RIC
+
+# Optionally save the merged table as a Word document
+gtsave(as_gt(Merged_Subdistribution_RIC), "RIC_Merged_Subdistribution.docx")
+
+Merged_CS_fave
+Merged_Subdistribution_fave
+Merged_CS_obli
+Merged_Subdistribution_obli
+Merged_CS_RIC
+Merged_Subdistribution_RIC# Merge all six tables vertically
+Merged_All <- tbl_stack(
+  list(
+    Merged_CS_fave,
+    Merged_Subdistribution_fave,
+    Merged_CS_obli,
+    Merged_Subdistribution_obli,
+    Merged_CS_RIC,
+    Merged_Subdistribution_RIC
+  ),
+  group_header = c(
+    "**Cause-Specific Cox Regression (Fave)**",
+    "**Subdistribution Model (Fave)**",
+    "**Cause-Specific Cox Regression (Obli)**",
+    "**Subdistribution Model (Obli)**",
+    "**Cause-Specific Cox Regression (RIC)**",
+    "**Subdistribution Model (RIC)**"
+  )
+) %>%
+  modify_caption("**Combined Results for All Models**")
+
+# Display the merged table
+Merged_All
+
+# Optionally save the merged table as a Word document
+gtsave(as_gt(Merged_All), "Combined_Merged_Results.docx")
+
+
+
+######################################################################################################################################
+###################################### Tables ###################################################
+######################################################################################################################################
+
+{
+  library(dplyr)
+  library(gtsummary)
+  library(gt)
+  library(officer)
+}
+
+{
+  library(dplyr)
+  library(gtsummary)
+  library(gt)
+  library(officer)
+}
+
+
+
+
+###################################### Table 1 - Baseline ###################################################
+
+temp.final <- temp.final %>%
+  mutate(Prior.Resection = case_when(str_detect(prior_tx, "A")==TRUE~1, TRUE ~0),
+         Prior.evac = case_when(str_detect(prior_tx, "B")==TRUE~1, TRUE ~0),
+         Prior.embo.nidus = case_when(str_detect(prior_tx, "D")==TRUE~1, TRUE ~0),
+         Prior.embo.aneurysm = case_when(str_detect(prior_tx, "E")==TRUE~1, TRUE ~0),
+         Prior.csf.div = case_when(str_detect(prior_tx, "C")==TRUE~1, TRUE ~0),
+         No.prior.tx = case_when(str_detect(prior_tx, "N")==TRUE~1, TRUE ~0))
+
+temp.final <- temp.final %>%
+  mutate(location = str_replace(location, "1", "L"))
+temp.final <- temp.final %>%
+  mutate(location = str_replace(location, "2", "T"))
+temp.final <- temp.final %>%
+  mutate(location = str_replace(location, "3", "B"))
+temp.final <- temp.final %>%
+  mutate(location = str_replace(location, "4", "C"))
+
+temp.final <- temp.final %>%
+  mutate(Lobar = case_when(str_detect(location, "L")==TRUE~1, TRUE ~0),
+         BAsal.ganglia = case_when(str_detect(location, "T")==TRUE~1, TRUE ~0),
+         Brainstem = case_when(str_detect(location, "B")==TRUE~1, TRUE ~0),
+         Cerebellum = case_when(str_detect(location, "C")==TRUE~1, TRUE ~0))
+
+temp.final <- temp.final %>%
+  mutate(associated_aneurysm = str_replace(associated_aneurysm, "N", "0"))
+temp.final <- temp.final %>%
+  mutate(associated_aneurysm = str_replace(associated_aneurysm, "Y", "1"))
+
+temp.final <- temp.final %>%
+  mutate(avm_type = str_replace(avm_type, "1", "Compact"))
+temp.final <- temp.final %>%
+  mutate(avm_type = str_replace(avm_type, "2", "Diffuse"))
+
+
+temp.final <- temp.final %>%
+  mutate(Hemorrhage.diagnosis = case_when(str_detect(sypmtoms_at_dx, "1")==TRUE~1, TRUE ~0),
+         Seizures.diagnosis = case_when(str_detect(sypmtoms_at_dx, "2")==TRUE~1, TRUE ~0),
+         Headache.diagnosis = case_when(str_detect(sypmtoms_at_dx, "3")==TRUE~1, TRUE ~0),
+         Incidental.diagnosis = case_when(str_detect(sypmtoms_at_dx, "4")==TRUE~1, TRUE ~0),
+         Other.diagnosis = case_when(str_detect(sypmtoms_at_dx, "5")==TRUE~1, TRUE ~0))
+
+temp.final <- temp.final %>%
+  mutate(side = str_replace(side, "L", "Left"))
+temp.final <- temp.final %>%
+  mutate(side = str_replace(side, "R", "Right"))
+temp.final <- temp.final %>%
+  mutate(side = str_replace(side, "B", "Bilateral"))
+temp.final <- temp.final %>%
+  mutate(side = str_replace(side, "M", "Bilateral"))
+
+
+
+temp.final <- temp.final %>%
+  mutate(SM_location = str_replace(SM_location, "0", "Non-eloquent"))
+temp.final <- temp.final %>%
+  mutate(SM_location = str_replace(SM_location, "1", "Eloquent"))
+
+
+
+
+# Generate the summary table
+
+Table_1_Baseline <- tbl_summary(
+  temp.final,
+  by = NULL,
+  label = list(
+    Age_at_diagnosis ~ "Age at Diagnosis, y",
+    age_at_srs ~ "Age at SRS, y",
+    gender ~ "Sex",
+    Hemorrhage.diagnosis ~ "Hemorrhage at diagnosis",
+    Seizures.diagnosis ~ "Seizure at diagnosis",
+    Headache.diagnosis ~ "Headache at diagnosis",
+    Incidental.diagnosis ~ "Incidental at diagnosis",
+    Other.diagnosis ~ "Other symptoms at diagnosis",
+    Prior_Hemorrhage ~ "Prior Hemorrhage",
+    period_dx_to_hem ~ "Time from diagnosis to hemorrhage, m",
+    Prior.Resection ~ "Prior resection",
+    Prior.evac ~ "Prior hematoma evacuation",
+    Prior.embo.nidus ~ "Prior nidus embolization",
+    Prior.embo.aneurysm ~ "Prior aneurysm embolization",
+    Prior.csf.div ~ "Prior CSF diversion",
+    No.prior.tx ~ "No prior treatment",
+    Lobar ~ "Lobar",
+    BAsal.ganglia ~ "Basal ganglia/Thalamus",
+    Brainstem ~ "Brainstem",
+    Cerebellum ~ "Cerebellum",
+    side ~ "Side of the AVM",
+    associated_aneurysm ~ "Associated aneurysm",
+    avm_type ~ "AVM type",
+    S_size ~ "Size of the AVM",
+    SM_location ~ "Location of AVM in SM grading",
+    SM_vein ~ "Vein type in SM grading",
+    SM_grade ~ "SM grade",
+    mRS_prior ~ "mRS prior to SRS"
+  ),
+  statistic = list(
+    all_continuous() ~ "{median} ({p25}, {p75})", 
+    all_categorical() ~ "{n} ({p}%)"
+  ),
+  digits = list(
+    all_continuous() ~ 1, 
+    all_categorical() ~ c(0, 1)
+  ),
+  missing = "ifany",
+  missing_text = "Unknown",
+  sort = everything() ~ "alphanumeric",
+  percent = "column",
+  include = c(
+    Age_at_diagnosis, age_at_srs, gender, Prior_Hemorrhage, period_dx_to_hem, Prior.Resection, Prior.evac, Prior.embo.nidus,
+    Prior.embo.aneurysm, Prior.csf.div, No.prior.tx, Lobar, Hemorrhage.diagnosis,Seizures.diagnosis, Headache.diagnosis, Incidental.diagnosis, Other.diagnosis,BAsal.ganglia, Brainstem, Cerebellum, side, associated_aneurysm, avm_type, S_size, SM_location,
+    SM_vein, SM_grade, mRS_prior, 
+  )
+) %>%
+  modify_caption("**Table 1. Baseline Characteristics**") %>%
+  bold_labels()
+
+# Print the summary table
+Table_1_Baseline
+
+
+gt_table <- as_gt(Table_1_Baseline)
+
+gtsave(gt_table, "AVM_Patient_Characteristics_Table.docx")
+
+
+
+###################################### Table 2 - SRS ###################################################
+
+
+
+Table_2_SRS <- tbl_summary(
+  temp.final,
+  by = NULL,
+  label = list(
+    max_dm_1st_GK_cm ~ "Maximum AVM diameter (cm)",
+    `Total_AVM_Volume_(cc)` ~ "AVM volume, (cm3)",
+    number_of_stages ~ "Number of SRS stages",
+    max_dose_1st_Gy ~ "Maximum dose (Gy)",
+    margin_dose_1st_Gy ~ "Prescription dose (Gy)",
+    `isodose(%)_dose_1st_Gy` ~ "Isodose line (%)",
+    `Volume_1st_GK(cc)` ~ "Volume (cm3)",
+    `Time_between_stages_1-2_(months)` ~ "Time interval between first and second SRS stages (m)",
+    `Max_Dose_2nd_(Gy)` ~ "Maximum dose (Gy)",
+    Margin_2nd_GK ~ "Prescription dose (Gy)",
+    `isodose(%)_2nd_GK` ~ "Isodose line (%)",
+    volume_2nd_GK_cc ~ "Volume (cm3)",
+    `Time_between_stages_2-3_(months)` ~ "Time interval between Second and third SRS stages (m)",
+    `Max_Dose_3rd_GK(Gy)` ~ "Maximum dose (Gy)",
+    Margin_3rd_GK ~ "Prescription dose (Gy)",
+    `isodose(%)_3rd_GK` ~ "Isodose line (%)",
+    volume_3rd_GK ~ "Volume (cm3)",
+    `Time_between_stages_3-4_(months)` ~ "Time interval between third and fourth SRS stages (m)",
+    Max_Dose_4th_GK ~ "Maximum dose (Gy)",
+    Margin_4th_GK ~ "Prescription dose (Gy)",
+    `Isodose(%)_4th_GK` ~ "Isodose line (%)",
+    `Volume(cc)_4th_GK` ~ "Volume (cm3)"
+  ),
+  statistic = list(
+    all_continuous() ~ "{median} ({p25}, {p75})", 
+    all_categorical() ~ "{n} ({p}%)"
+  ),
+  digits = list(
+    all_continuous() ~ 1, 
+    all_categorical() ~ c(0, 1)
+  ),
+  type = list(
+    max_dm_1st_GK_cm ~ "continuous",
+    `Total_AVM_Volume_(cc)` ~ "continuous",
+    max_dose_1st_Gy ~ "continuous",
+    margin_dose_1st_Gy ~ "continuous",
+    `isodose(%)_dose_1st_Gy` ~ "continuous",
+    `Volume_1st_GK(cc)` ~ "continuous",
+    `Time_between_stages_1-2_(months)` ~ "continuous",
+    `Max_Dose_2nd_(Gy)` ~ "continuous",
+    Margin_2nd_GK ~ "continuous",
+    `isodose(%)_2nd_GK`~ "continuous",
+    volume_2nd_GK_cc ~ "continuous",
+    `Time_between_stages_2-3_(months)` ~ "continuous",
+    `Max_Dose_3rd_GK(Gy)` ~ "continuous",
+    Margin_3rd_GK ~ "continuous",
+    `isodose(%)_3rd_GK` ~ "continuous",
+    volume_3rd_GK ~ "continuous",
+    `Time_between_stages_3-4_(months)` ~ "continuous",
+    Max_Dose_4th_GK ~ "continuous",
+    Margin_4th_GK ~ "continuous",
+    `Isodose(%)_4th_GK` ~ "continuous",
+    `Volume(cc)_4th_GK` ~ "continuous"
+  ),
+  missing = "ifany",
+  missing_text = "Unknown",
+  sort = everything() ~ "alphanumeric",
+  percent = "column",
+  include = c(
+    number_of_stages,
+    max_dm_1st_GK_cm,
+    `Total_AVM_Volume_(cc)`,
+    max_dose_1st_Gy,
+    margin_dose_1st_Gy,
+    `isodose(%)_dose_1st_Gy`,
+    `Volume_1st_GK(cc)`,
+    `Time_between_stages_1-2_(months)`,
+    `Max_Dose_2nd_(Gy)`,
+    Margin_2nd_GK,
+    `isodose(%)_2nd_GK` ,
+    volume_2nd_GK_cc,
+    `Time_between_stages_2-3_(months)`,
+    `Max_Dose_3rd_GK(Gy)` ,
+    Margin_3rd_GK ,
+    `isodose(%)_3rd_GK` ,
+    volume_3rd_GK ,
+    `Time_between_stages_3-4_(months)` ,
+    Max_Dose_4th_GK ,
+    Margin_4th_GK,
+    `Isodose(%)_4th_GK`,
+    `Volume(cc)_4th_GK`
+  )
+) %>%
+  modify_caption("**Table 2. SRS Characteristics**") %>%
+  bold_labels()
+
+Table_2_SRS
+
+gt_table <- as_gt(Table_2_SRS)
+
+gtsave(gt_table, "SRS_Characteristics_Table.docx")
+
+
+
+###################################### Table 3 - Outcomes ###################################################
+
+
+temp.final$Treatment_for_ARE <- as.character(temp.final$Treatment_for_ARE)
+
+{
+  temp.final <- temp.final %>%
+    mutate(No.treatment.ARE = case_when(str_detect(temp.final$Treatment_for_ARE, "0")==TRUE~1, TRUE ~0),
+           Corticosteriod.ARE = case_when(str_detect(temp.final$Treatment_for_ARE, "1")==TRUE~1, TRUE ~0),
+           BVZ.ARE = case_when(str_detect(temp.final$Treatment_for_ARE, "2")==TRUE~1, TRUE ~0),
+           surgery.ARE = case_when(str_detect(temp.final$Treatment_for_ARE, "3")==TRUE~1, TRUE ~0),
+           Other.ARE = case_when(str_detect(temp.final$Treatment_for_ARE, "4")==TRUE~1, TRUE ~0))
+  
+  temp.final <- temp.final %>%
+    mutate(Imaging_ARE = str_replace(Imaging_ARE, "1", "Cystic"))
+  temp.final <- temp.final %>%
+    mutate(Imaging_ARE = str_replace(Imaging_ARE, "2", "T2 Hyperintensity"))
+  
+  temp.final <- temp.final %>%
+    mutate(RIC.deficit = str_replace(RIC.deficit, "0", "None"))
+  temp.final <- temp.final %>%
+    mutate(RIC.deficit = str_replace(RIC.deficit, "1", "ARE with Permanent neurological deficit"))
+  temp.final <- temp.final %>%
+    mutate(post.srs.hemorrhage = str_replace(post.srs.hemorrhage, "0", "None"))
+  temp.final <- temp.final %>%
+    mutate(post.srs.hemorrhage = str_replace(post.srs.hemorrhage, "1", "Hemorrhage during follow-up"))
+  temp.final <- temp.final %>%
+    mutate(salvage.resection = case_when(str_detect(Salvage_treatments, "A")==TRUE~1, TRUE ~0),
+           salvage.emb = case_when(str_detect(Salvage_treatments, "B")==TRUE~1, TRUE ~0),
+           salvage.hem.evac = case_when(str_detect(Salvage_treatments, "C")==TRUE~1, TRUE ~0),
+           salvage.srs = case_when(str_detect(Salvage_treatments, "D")==TRUE~1, TRUE ~0))
+}
+
+
+library(gtsummary)
+library(gt)
+
+# Generate the summary table
+Table_3_outcome <- tbl_summary(
+  temp.final,
+  by = NULL,
+  label = list(
+    last_clinical_fu ~ "Median (IQR) clinical follow-up (m)",
+    last_MRI_fu ~ "Median (IQR) MRI follow-up (m)",
+    last_angio_FU ~ "Median (IQR) DSA follow-up (m)",
+    time.to.salvage ~ "Time to Retreatment",
+    obliteration.status ~ "Number of obliteration",
+    time.to.obliteration ~ "Median (IQR) time to obliteration (m)",
+    obliteration.imaging ~ "Imaging for Obliteration",
+    ARE_Yes_N ~ "Total RIC",
+    time.to.ARE ~ "Median (IQR) time to RIC (m)",
+    RIC.deficit ~ "RIC with permanent neurological deficit",
+    time.to.RIC ~ "Median (IQR) time to RIC with permanent neurological eficit (m)",
+    Imaging_ARE ~ "Imaging feature of RIC",   
+    No.treatment.ARE ~ "No treatment for RIC",
+    Corticosteriod.ARE ~ "Corticosteroids for RIC",
+    BVZ.ARE ~ "Bevacizumab for RIC",
+    surgery.ARE ~ "Surgery for RIC",
+    Other.ARE ~ "Miscellaneous for RIC",
+    post.srs.hemorrhage ~ "Hemorrhage after initial SRS",
+    time.to.hemorrhage ~ "Median (IQR) time to hemorrhage (m)",
+    salvage.resection ~ "Salvage resection",
+    salvage.emb ~ "Salvage embolization",
+    salvage.hem.evac ~ "Salvage hematoma evacuation",
+    salvage.srs ~ "Salvage SRS",
+    time.to.salvage ~ "Median (IQR) time to retreatment (m)",
+    Death.status ~ "Mortality"
+  ),
+  statistic = list(
+    all_continuous() ~ "{median} ({p25}, {p75})", 
+    all_categorical() ~ "{n} ({p}%)"
+  ),
+  digits = list(
+    all_continuous() ~ 1, 
+    all_categorical() ~ c(0, 1)
+  ),
+  missing = "ifany",
+  missing_text = "Unknown",
+  sort = everything() ~ "alphanumeric",
+  percent = "column",
+  include = c(
+    last_clinical_fu ,
+    last_MRI_fu ,
+    last_angio_FU,
+    time.to.salvage,
+    obliteration.status ,
+    time.to.obliteration,
+    obliteration.imaging ,
+    ARE_Yes_N,
+    time.to.ARE,
+    RIC.deficit,
+    time.to.RIC,
+    Imaging_ARE,   
+    No.treatment.ARE,
+    Corticosteriod.ARE,
+    BVZ.ARE,
+    surgery.ARE,
+    Other.ARE,
+    post.srs.hemorrhage,
+    time.to.hemorrhage,
+    salvage.resection,
+    salvage.emb,
+    salvage.hem.evac,
+    salvage.srs,
+    time.to.salvage,
+    Death.status,
+  )
+) %>%
+  modify_caption("**Table 3. Outcomes**") %>%
+  bold_labels()
+
+# Convert to GT object and save as Word document
+gt_table <- as_gt(Table_3_outcome)
+gtsave(gt_table, "Table 3 - outcomes.docx")
+
+table(temp.final$Salvage_treatments)
+table(data$ARE_symp_asymp)
+table(data$Temporary_or_permanent_symptomatic_ARE)
+
+# Subsetting data where both conditions are met
+filtered_data <- subset(data, ARE_symp_asymp == 0 & Temporary_or_permanent_symptomatic_ARE == 1)
+
+# Display the filtered data (optional)
+print(filtered_data)
+
+# Get the count of rows where both conditions are satisfied
+count <- nrow(filtered_data)
+cat("Number of rows with ARE_symp_asymp = 0 and Temporary_or_permanent_symptomatic_ARE = 1:", count, "\n")
+
+
+# Subsetting data where Salvage_treatments is "D"
+filtered_data <- subset(data, Salvage_treatments == "D" & !is.na(time.to.salvage))
+
+# Calculating the median
+median_time <- median(filtered_data$time.to.salvage, na.rm = TRUE)
+
+# Calculating the 1st and 3rd quartiles (IQR)
+quartiles <- quantile(filtered_data$time.to.salvage, probs = c(0.25, 0.75), na.rm = TRUE)
+iqr_1 <- quartiles[1]
+iqr_3 <- quartiles[2]
+
+# Displaying the results
+cat("Median time for Salvage_treatments = 'D':", median_time, "\n")
+cat("1st Quartile (Q1):", iqr_1, "\n")
+cat("3rd Quartile (Q3):", iqr_3, "\n")
+
+
+table(temp.final$Imaging_ARE == "Cystic")
+# Create a new filtered dataset
+Cystic_data <- subset(temp, Imaging_ARE == "1")
+
+# Calculate the median and IQR
+median_value <- median(Cystic_data$time.to.RIC, na.rm = TRUE)
+IQR1 <- quantile(Cystic_data$time.to.RIC, 0.25, na.rm = TRUE) # 1st quartile (25th percentile)
+IQR3 <- quantile(Cystic_data$time.to.RIC, 0.75, na.rm = TRUE) # 3rd quartile (75th percentile)
+
+# Print the results
+cat("Median:", median_value, "\nIQR (1st Quartile):", IQR1, "\nIQR (3rd Quartile):", IQR3, "\n")
