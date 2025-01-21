@@ -891,7 +891,7 @@ combined_plot <- overall_obliteration_plot / plot_volume_group / plot_margin_gro
 
 # Save the combined plot as a TIFF file with 300 DPI resolution
 library(ragg)
-agg_tiff("Combined_CIF_Plot.tiff", width = 1500, height = 1800, res = 150, units = "px", compression = "zip")
+agg_tiff("Combined_CIF_Plot.tiff", width = 3000, height = 4000, res = 300, units = "px", compression = "zip")
 
 # Print the combined plot
 print(combined_plot)
@@ -906,7 +906,7 @@ library(tidycmprsk)
 # Combine the plots into a single layout
 combined_plot <- overall_obliteration_plot / plot_volume_group / plot_margin_group
 
-agg_png("Combined_CIF_Plot.png", width = 1500, height = 1800, res = 150, units = "px")
+agg_png("Combined_CIF_Plot.png", width = 3000, height = 4000, res = 300, units = "px")
 
 # Print the combined plot
 print(combined_plot)
