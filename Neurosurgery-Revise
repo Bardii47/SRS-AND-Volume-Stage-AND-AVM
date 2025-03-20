@@ -849,7 +849,7 @@ plot <- tidycmprsk::cuminc(Surv(Event.Time, Status) ~ 1, data = temp.final) %>%
         plot.title = element_text(hjust = 0.5),  # Center title
         axis.title.y = element_text(margin = margin(t = 0, r = 10, b = 0, l = 0)),      
         axis.title.x = element_text(margin = margin(t = 10, r = 0, b = 0, l = 0))) +
-  annotate(geom = "text", x = 200, y = 0.14, label = "Adverse radiation effect")
+  annotate(geom = "text", x = 200, y = 0.16, label = "Adverse radiation effect")
 
 # Print the plot
 print(plot)
